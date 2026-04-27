@@ -1,0 +1,68 @@
+{
+  "language": {
+    "title": "Select Your Language",
+    "subtitle": "Choose your preferred language to continue"
+  },
+  "landing": {
+    "welcome": "Welcome to the Realm",
+    "tap_to_start": "TAP TO START",
+    "press_start": "PRESS START",
+    "play_time": "PLAY TIME",
+    "status": "STATUS",
+    "ready": "READY",
+    "max_level": "MAX LEVEL",
+    "legendary_hero": "🏆 LEGENDARY HERO 🏆",
+    "copyright": "© 2026 POTESIA™. All Rights Reserved."
+  },
+  "menu": {
+    "title": "Main Menu",
+    "games": "Games",
+    "about_me": "About Me",
+    "my_project": "My Project",
+    "social_media": "Social Media",
+    "academic_journal": "Academic Journal",
+    "freelance": "Freelance",
+    "hp": "HP",
+    "mp": "MP",
+    "copyright": "© 2026 POTESIA™. All Rights Reserved."
+  },
+  "about": {
+    "title": "About Me",
+    "character_stats": "Character Stats",
+    "class": "CLASS",
+    "level": "LEVEL",
+    "title_label": "TITLE",
+    "guild": "GUILD",
+    "ai_engineer": "AI Engineer",
+    "scholar": "Scholar",
+    "potesia": "Potesia",
+    "greeting": "Hello and welcome to my page!",
+    "bio_1": "My name is Fitly Tjong Mamuaya, an IT professional and Master of Information Systems graduate from Satya Wacana Christian University (UKSW). My main expertise lies in Graphic Design, Audit & Analysis, and Machine Learning, with a deep specialization in Computer Vision.",
+    "bio_2": "I am experienced in developing models for prediction, forecasting, classification, object detection, and deep face analysis to read human emotions and interactions using OpenCV for various projects.",
+    "bio_3": "I am also proficient in graphic design tools such as Photoshop, Premiere Pro, and After Effects to create logos, UI/UX, animations, and more.",
+    "bio_4": "During my master's studies, which resulted in a Scopus Q3 journal publication on brain tumor detection (ReViXNET50) that I presented at iCAST 2025, I was trained to dissect complex problems, choose the most efficient solutions, and evaluate final results measurably.",
+    "bio_5": "This problem-solving and adaptation ability was also honed practically through work experience as an admin and active involvement in various campus expos and activities.",
+    "skills_title": "Skills & Abilities",
+    "quote": "In the unknown, every challenge is a canvas. Every discovery is an upgrade."
+  },
+  "project": {
+    "title": "My Project",
+    "object_detection": "Object Detection",
+    "face_attendance": "Face Attendance",
+    "car_counter": "AI Car Counter System",
+    "hand_gesture": "Hand Gesture Control Interface",
+    "website_samples": "Website Samples",
+    "website_samples_desc": "Click to explore showcase templates",
+    "data_viz": "Data Analyst Visualization System",
+    "data_viz_desc": "Upload Excel/CSV → Auto-Analyze → Visualize",
+    "showcase_title": "Website Showcase",
+    "showcase_desc": "Select a design style to preview",
+    "minimalist": "Minimalist",
+    "minimalist_desc": "Clean & architectural",
+    "modern": "Modern",
+    "modern_desc": "Corporate & bold",
+    "3d_experience": "3D Experience",
+    "3d_desc": "Futuristic & immersive",
+    "close": "Close"
+  }
+}
