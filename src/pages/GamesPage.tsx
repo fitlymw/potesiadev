@@ -42,6 +42,14 @@ const GAMES: GameCard[] = [
     path: '/games/persona-core',
   },
   {
+    id: 'matrix-reasoning',
+    title: 'Matrix Reasoning',
+    description: 'Adaptive IQ-style pattern reasoning test',
+    icon: getAssetUrl('/images/matrix-icon.svg'),
+    color: 'emerald',
+    path: '/games/matrix-reasoning',
+  },
+  {
     id: 'protocol-slice',
     title: 'CYBER-SYNAPSE',
     description: 'Protocol Slice - Test your reaction speed!',

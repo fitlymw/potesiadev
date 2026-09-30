@@ -29,6 +29,7 @@ const OracleTavernPage = lazy(() => import('@/pages/OracleTavernPage').then((m) 
 const OracleResultPage = lazy(() => import('@/pages/OracleResultPage').then((m) => ({ default: m.OracleResultPage })));
 const RetroAICameraPage = lazy(() => import('@/pages/RetroAICameraPage').then((m) => ({ default: m.RetroAICameraPage })));
 const PersonaCorePage = lazy(() => import('@/pages/PersonaCorePage').then((m) => ({ default: m.PersonaCorePage })));
+const MatrixReasoningPage = lazy(() => import('@/pages/MatrixReasoningPage').then((m) => ({ default: m.MatrixReasoningPage })));
 const ProtocolSlicePage = lazy(() => import('@/pages/ProtocolSlicePage').then((m) => ({ default: m.ProtocolSlicePage })));
 
 /** Halaman tanpa nav/footer (full-screen) */
@@ -103,6 +104,7 @@ function App() {
                 <Route path="/games/oracle-tavern/result" element={<Fullscreen><OracleResultPage /></Fullscreen>} />
                 <Route path="/games/retro-ai-camera" element={<Fullscreen><RetroAICameraPage /></Fullscreen>} />
                 <Route path="/games/persona-core" element={<Fullscreen><PersonaCorePage /></Fullscreen>} />
+                <Route path="/games/matrix-reasoning" element={<Fullscreen><MatrixReasoningPage /></Fullscreen>} />
                 <Route path="/games/protocol-slice" element={<Fullscreen><ProtocolSlicePage /></Fullscreen>} />
                 <Route path="*" element={landing} />
               </Routes>
