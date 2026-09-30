@@ -50,6 +50,14 @@ const GAMES: GameCard[] = [
     path: '/games/mind-reader',
   },
   {
+    id: 'emotion-impostor',
+    title: 'Emotion Impostor',
+    description: 'Party game (4–8 players, 1 phone): find who is faking the feeling',
+    icon: getAssetUrl('/images/emotion-impostor-icon.svg'),
+    color: 'rose',
+    path: '/games/emotion-impostor',
+  },
+  {
     id: 'profiler',
     title: 'The Profiler',
     description: 'Party game (4–8 players, 1 phone): guess who wrote each anonymous answer',
