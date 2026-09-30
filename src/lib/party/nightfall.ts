@@ -32,13 +32,16 @@ export { shuffleSeats } from '@/lib/party/common';
 export const NF_MIN_PLAYERS = 5;
 export const NF_MAX_PLAYERS = 10;
 
-/** [Luminaries, Cursed, Shadows, Nightbringer] per player count (Blood on the Clocktower proportions). */
+/**
+ * [Luminaries, Cursed, Shadows, Nightbringer] per player count. Based on Blood on the Clocktower, adjusted by
+ * simulation: 5 players have no Shadow (it was far too Dark-sided) and 9 players get a second Shadow.
+ */
 export const SETUP_TABLE: Record<number, [number, number, number, number]> = {
-  5: [3, 0, 1, 1],
+  5: [3, 1, 0, 1],
   6: [3, 1, 1, 1],
   7: [5, 0, 1, 1],
   8: [5, 1, 1, 1],
-  9: [5, 2, 1, 1],
+  9: [5, 1, 2, 1],
   10: [7, 0, 2, 1],
 };
 
@@ -63,7 +66,10 @@ export const EXCLUSIVE_ROLES: [RoleId, RoleId][] = [['saint', 'heretic']];
 export const SAINT_ROLES: RoleId[] = ['saint', 'heretic'];
 export const SAINT_GHOST_VOTES = 2;
 /** Balance settings (tuned by simulation). */
-export const TUNING = { gougeFromNight: 2, gougeUnstoppable: false, hereticKeepsLife: false, fangRestAfterShield: false, fangShieldLastDay: 0 };
+export const TUNING = { gougeFromNight: 1, gougeUnstoppable: false, hereticKeepsLife: false, fangRestAfterShield: true, fangShieldLastDay: 2 };
+/** Chance per Standard match that the Saint / the Heretic is in play (never both). */
+export const SAINT_CHANCE = 0.33;
+export const HERETIC_CHANCE = 0.11;
 /** Chance that both roles in the Saint's vision are false. */
 export const SAINT_VISION_BOTH_FALSE = 0.3;
 export const TIDE_USES = 2;
@@ -642,7 +648,12 @@ export function dealRoles(n: number, random: () => number, mode: Mode = 'standar
     return out;
   };
   draw(mode === 'standard' ? STANDARD_BOSSES : [mode as RoleId], boss);
-  const shadows = draw(rolesOfTeam('shadow'), sha);
+  // The Saint and the Heretic come from a fixed chance, not the normal draw (Heretic needs a Shadow seat)
+  const special = mode === 'standard' ? random() : 1;
+  const withHeretic = special < HERETIC_CHANCE && sha > 0;
+  const withSaint = special >= HERETIC_CHANCE && special < HERETIC_CHANCE + SAINT_CHANCE;
+  if (withHeretic) inPlay.push('heretic');
+  const shadows = [...(withHeretic ? ['heretic' as RoleId] : []), ...draw(rolesOfTeam('shadow').filter((r) => !SAINT_ROLES.includes(r)), sha - (withHeretic ? 1 : 0))];
   let lum = lum0;
   let cur = cur0;
   if (shadows.includes('blight')) {
@@ -651,9 +662,14 @@ export function dealRoles(n: number, random: () => number, mode: Mode = 'standar
   }
   // Not enough Cursed roles (small pool or synergy lock): the rest become Luminaries
   lum += cur - draw(rolesOfTeam('cursed'), cur).length;
-  const lumPool = rolesOfTeam('luminary').filter((r) => mode === 'standard' || !STANDARD_ONLY_ROLES.includes(r));
+  const lumPool = rolesOfTeam('luminary').filter((r) => r !== 'saint' && (mode === 'standard' || !STANDARD_ONLY_ROLES.includes(r)));
+  if (withSaint) {
+    inPlay.push('saint');
+    lum -= 1;
+  }
   draw(lumPool, lum);
   const roles = shuffle(inPlay, random);
+  // The Saint is revealed publicly, so it is never offered as a bluff
   const bluffs = shuffle([...lumPool, ...rolesOfTeam('cursed')].filter((r) => !roles.includes(r)), random).slice(0, 3);
   const pactIdx = roles.indexOf('pact');
   let pact: [number, number] | null = null;
