@@ -56,6 +56,7 @@ export const PAGE_ASSETS: Record<string, string[]> = {
     '/images/camera_logo.png',
     '/images/matrix-icon.svg',
     '/images/mind-reader-icon.svg',
+    '/images/profiler-icon.svg',
     '/images/castle_retro.gif',
   ],
   '/games/oracle-tavern': ['/images/mbtigamebg.gif'],

@@ -50,6 +50,14 @@ const GAMES: GameCard[] = [
     path: '/games/mind-reader',
   },
   {
+    id: 'profiler',
+    title: 'The Profiler',
+    description: 'Party game (4–8 players, 1 phone): guess who wrote each anonymous answer',
+    icon: getAssetUrl('/images/profiler-icon.svg'),
+    color: 'sky',
+    path: '/games/profiler',
+  },
+  {
     id: 'matrix-reasoning',
     title: 'Matrix Reasoning',
     description: 'Adaptive IQ-style pattern reasoning test',

@@ -17,8 +17,9 @@
  * round's top guessers.
  */
 
-export const MIN_PLAYERS = 4;
-export const MAX_PLAYERS = 8;
+import { validatePlayers } from '@/lib/party/common';
+
+export { MIN_PLAYERS, MAX_PLAYERS, validatePlayers, shuffleSeats, pickQuestions } from '@/lib/party/common';
 export const QUESTIONS_PER_ROUND = 4;
 export const SCALE_MIN = 1;
 export const SCALE_MAX = 10;
@@ -92,37 +93,6 @@ export function pendingPlayer(state: GameState): number | null {
   if (!round.self) return round.targetIndex;
   const guessers = guessersOf(round, state.players.length);
   return state.turn < guessers.length ? guessers[state.turn] : null;
-}
-
-export function validatePlayers(names: string[]): 'tooFew' | 'tooMany' | 'empty' | 'duplicate' | null {
-  const trimmed = names.map((n) => n.trim());
-  if (trimmed.some((n) => n === '')) return 'empty';
-  if (trimmed.length < MIN_PLAYERS) return 'tooFew';
-  if (trimmed.length > MAX_PLAYERS) return 'tooMany';
-  if (new Set(trimmed.map((n) => n.toLowerCase())).size !== trimmed.length) return 'duplicate';
-  return null;
-}
-
-/** Random seating order for the entered names. */
-export function shuffleSeats(names: string[], random: () => number = Math.random): string[] {
-  const seats = names.map((n) => n.trim());
-  for (let i = seats.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [seats[i], seats[j]] = [seats[j], seats[i]];
-  }
-  return seats;
-}
-
-/** Pick `count` unused question ids; recycles the bank once it runs out. */
-export function pickQuestions(allIds: string[], used: string[], count: number, random: () => number = Math.random): string[] {
-  let pool = allIds.filter((id) => !used.includes(id));
-  if (pool.length < count) pool = [...allIds];
-  const shuffled = [...pool];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled.slice(0, count);
 }
 
 function newRound(targetIndex: number, questionIds: string[]): Round {

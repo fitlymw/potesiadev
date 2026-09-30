@@ -29,6 +29,7 @@ const OracleTavernPage = lazy(() => import('@/pages/OracleTavernPage').then((m) 
 const OracleResultPage = lazy(() => import('@/pages/OracleResultPage').then((m) => ({ default: m.OracleResultPage })));
 const RetroAICameraPage = lazy(() => import('@/pages/RetroAICameraPage').then((m) => ({ default: m.RetroAICameraPage })));
 const PersonaCorePage = lazy(() => import('@/pages/PersonaCorePage').then((m) => ({ default: m.PersonaCorePage })));
+const ProfilerPage = lazy(() => import('@/pages/ProfilerPage').then((m) => ({ default: m.ProfilerPage })));
 const MindReaderPage = lazy(() => import('@/pages/MindReaderPage').then((m) => ({ default: m.MindReaderPage })));
 const MatrixReasoningPage = lazy(() => import('@/pages/MatrixReasoningPage').then((m) => ({ default: m.MatrixReasoningPage })));
 const ProtocolSlicePage = lazy(() => import('@/pages/ProtocolSlicePage').then((m) => ({ default: m.ProtocolSlicePage })));
@@ -105,6 +106,7 @@ function App() {
                 <Route path="/games/oracle-tavern/result" element={<Fullscreen><OracleResultPage /></Fullscreen>} />
                 <Route path="/games/retro-ai-camera" element={<Fullscreen><RetroAICameraPage /></Fullscreen>} />
                 <Route path="/games/persona-core" element={<Fullscreen><PersonaCorePage /></Fullscreen>} />
+                <Route path="/games/profiler" element={<Fullscreen><ProfilerPage /></Fullscreen>} />
                 <Route path="/games/mind-reader" element={<Fullscreen><MindReaderPage /></Fullscreen>} />
                 <Route path="/games/matrix-reasoning" element={<Fullscreen><MatrixReasoningPage /></Fullscreen>} />
                 <Route path="/games/protocol-slice" element={<Fullscreen><ProtocolSlicePage /></Fullscreen>} />
