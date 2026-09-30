@@ -1,5 +1,5 @@
 /**
- * Nightfall Deception — role book (EN + ID), Standard mode.
+ * Nightfall Deception — role book (EN + ID) for all three modes.
  *
  * Luminaries and Cursed are the good side (Kubu Terang); Shadows and the
  * Nightbringer are the evil side (Kubu Gelap). Rules are enforced by
@@ -12,10 +12,11 @@ type Localized = { en: string; id: string };
 export type Team = 'luminary' | 'cursed' | 'shadow' | 'nightbringer';
 
 export type RoleId =
-  | 'aura' | 'aegis' | 'glyph' | 'rune' | 'trace' | 'dirge' | 'nova' | 'spark' | 'gaze'
+  | 'aura' | 'aegis' | 'glyph' | 'rune' | 'trace' | 'dirge' | 'nova' | 'spark' | 'gaze' | 'loom' | 'pyre' | 'apex' | 'pact' | 'tide'
   | 'echo' | 'baiter' | 'void'
-  | 'mirage' | 'snare' | 'viper'
-  | 'abyss' | 'fang';
+  | 'mirage' | 'snare' | 'viper' | 'blight'
+  | 'abyss' | 'fang' | 'gouge' | 'bane'
+  | 'joker' | 'zombie';
 
 export interface RoleInfo {
   id: RoleId;
@@ -72,8 +73,8 @@ export const ROLES: Record<RoleId, RoleInfo> = {
     ['Each night you learn a number 0, 1 or 2: how many of your two nearest living neighbours (left and right) are Dark.', 'Tiap malam kamu mendapat angka 0, 1, atau 2: berapa dari dua tetangga hidup terdekatmu (kiri dan kanan) yang Kubu Gelap.'],
     [['When a neighbour dies, your next living neighbour counts instead.', 'Kalau tetanggamu mati, tetangga hidup berikutnya yang dihitung.'], ['Your seat matters — stay in your chair when the day ends.', 'Kursimu penting — kembali duduk saat siang berakhir.']]),
   trace: r('trace', 'luminary', 'Trace',
-    ['Each night, learn one player the Dark side visited.', 'Tiap malam, tahu satu pemain yang didatangi Kubu Gelap.'],
-    ['Each dawn you learn one player whom the Dark side visited that night (attacked or poisoned) — or that nobody was visited.', 'Tiap fajar kamu tahu satu pemain yang didatangi Kubu Gelap malam itu (diserang atau diracun) — atau bahwa tidak ada yang didatangi.'],
+    ['Each night, learn one player who was visited by a night threat.', 'Tiap malam, tahu satu pemain yang didatangi ancaman malam.'],
+    ['Each dawn you learn one player who was visited that night by an attack, poison, Gouge, infection or the crown holder — or that nobody was visited.', 'Tiap fajar kamu tahu satu pemain yang didatangi malam itu oleh serangan, racun, Gouge, infeksi, atau pemegang mahkota — atau bahwa tidak ada yang didatangi.'],
     [['A visited player who is still alive was probably protected or poisoned.', 'Pemain yang didatangi tapi masih hidup kemungkinan dilindungi atau diracun.']]),
   dirge: r('dirge', 'luminary', 'Dirge',
     ['Each night, learn the true role of whoever was executed that day.', 'Tiap malam, tahu peran asli pemain yang dieksekusi hari itu.'],
@@ -91,6 +92,26 @@ export const ROLES: Record<RoleId, RoleInfo> = {
     ['First night: learn that one of two players is a specific Cursed.', 'Malam pertama: tahu bahwa salah satu dari dua pemain adalah Cursed tertentu.'],
     ['On the first night you learn 2 players and a Cursed role: one of those two players is that role. If there is no Cursed in the game, you are told so.', 'Di malam pertama kamu diberi 2 nama dan 1 peran Cursed: salah satu dari dua pemain itu memegang peran tersebut. Jika tidak ada Cursed dalam permainan, kamu akan diberi tahu.'],
     [['Knowing the Cursed explains strange information (e.g. a Baiter reading as Dark).', 'Mengetahui Cursed membantu menjelaskan info yang aneh (misalnya Baiter terbaca sebagai Kubu Gelap).']]),
+  loom: r('loom', 'luminary', 'Loom',
+    ['Once per game, bring a dead player back to life.', 'Sekali per permainan, hidupkan kembali satu pemain yang sudah mati.'],
+    ['From the second night, once per game: choose 1 dead player. At dawn they come back to life with their role and a normal vote. You may skip and save it for later.', 'Mulai malam kedua, sekali per permainan: pilih 1 pemain yang sudah mati. Saat fajar ia hidup kembali dengan perannya dan hak suara biasa. Kamu boleh melewatinya dan menyimpannya untuk nanti.'],
+    [['Revive a player whose information was trustworthy.', 'Hidupkan pemain yang informasinya bisa dipercaya.'], ['If you are poisoned, the revival fails and is used up.', 'Kalau kamu sedang diracun, kebangkitannya gagal dan kemampuanmu habis.']]),
+  pyre: r('pyre', 'luminary', 'Pyre',
+    ['If you are killed by a night attack, you take someone with you.', 'Jika kamu terbunuh oleh serangan malam, kamu membawa satu orang ikut mati.'],
+    ['From the second night, choose 1 player each night (or skip). If a night attack kills you that night (Nightbringer, crown holder or horde), that player dies together with you.', 'Mulai malam kedua, pilih 1 pemain setiap malam (atau lewati). Jika serangan malam membunuhmu malam itu (Nightbringer, pemegang mahkota, atau gerombolan), pemain tersebut ikut mati bersamamu.'],
+    [['Always pick your strongest suspect — you never know which night is your last.', 'Selalu pilih tersangka terkuatmu — kamu tidak pernah tahu malam mana yang terakhir.']]),
+  apex: r('apex', 'luminary', 'Apex',
+    ['Survive to the final three: a tied vote makes the Light side win.', 'Bertahan sampai sisa tiga pemain: voting seri membuat Kubu Terang menang.'],
+    ['When only 3 players are alive and you are one of them, if the day ends with a tie between the top valid nominations, the Light side wins immediately.', 'Saat hanya tersisa 3 pemain hidup dan kamu salah satunya, jika hari berakhir dengan nominasi sah teratas yang seri, Kubu Terang langsung menang.'],
+    [['Stay hidden — the Dark side will hunt you once they suspect an Apex.', 'Tetap tersembunyi — Kubu Gelap akan memburumu begitu curiga ada Apex.']]),
+  pact: r('pact', 'luminary', 'Pact',
+    ['Bound to another Light player: you know each other, and die together.', 'Terikat dengan satu pemain Kubu Terang: kalian saling tahu, dan mati bersama.'],
+    ['On the first night you and one other Light-side player learn each other’s names. If one of you dies (night, execution or anything else), the other dies too.', 'Di malam pertama kamu dan satu pemain Kubu Terang lain saling mengetahui nama. Jika salah satu dari kalian mati (malam, eksekusi, atau sebab lain), yang lain ikut mati.'],
+    [['Your partner is someone you can fully trust — protect each other.', 'Pasanganmu adalah orang yang bisa kamu percaya penuh — saling lindungi.']]),
+  tide: r('tide', 'luminary', 'Tide',
+    ['Twice per game, swap two players’ seats and shield them that night.', 'Dua kali per permainan, tukar kursi dua pemain dan lindungi mereka malam itu.'],
+    ['From the second night, twice per game: choose 2 players. They swap seats (before any seat attack that night), and that night no attack, Gouge or infection can hurt them. You may skip.', 'Mulai malam kedua, dua kali per permainan: pilih 2 pemain. Mereka bertukar kursi (sebelum serangan kursi malam itu), dan malam itu serangan, Gouge, atau infeksi tidak bisa melukai mereka. Kamu boleh melewatinya.'],
+    [['Swapping seats changes who sits next to whom — useful for Rune and for the Viper vote order.', 'Menukar kursi mengubah siapa duduk di sebelah siapa — berguna untuk Rune dan urutan voting Viper.'], ['The Joker also swaps seats, so a swap does not prove who did it.', 'Joker juga menukar kursi, jadi pertukaran kursi tidak membuktikan siapa pelakunya.']]),
   // ==================== CURSED ====================
   echo: r('echo', 'cursed', 'Echo',
     ['Your vote counts twice — but a wrong execution costs your life.', 'Suaramu dihitung dua — tapi eksekusi yang salah membuatmu mati.'],
@@ -101,8 +122,8 @@ export const ROLES: Record<RoleId, RoleInfo> = {
     ['You are on the Light side, but Aura, Rune and similar abilities always detect you as Dark. You may also be shown to Glyph as a Shadow.', 'Kamu Kubu Terang, tapi Aura, Rune, dan kemampuan sejenis selalu mendeteksimu sebagai Kubu Gelap. Kamu juga bisa ditunjukkan ke Glyph sebagai Shadow.'],
     [['Tell the group early so your “Dark” reading is not misunderstood.', 'Beri tahu kelompok lebih awal supaya hasil "Gelap" pada dirimu tidak disalahpahami.']]),
   void: r('void', 'cursed', 'Void',
-    ['If you are executed, the Nightbringer kills two players the next night.', 'Jika kamu dieksekusi, Nightbringer membunuh dua orang malam berikutnya.'],
-    ['You are on the Light side. If the group executes you, the Nightbringer may kill 2 players the following night.', 'Kamu Kubu Terang. Jika kelompok mengeksekusimu, Nightbringer boleh membunuh 2 pemain pada malam berikutnya.'],
+    ['If you are executed, the Dark boss acts twice the next night.', 'Jika kamu dieksekusi, bos Kubu Gelap beraksi dua kali malam berikutnya.'],
+    ['You are on the Light side. If the group executes you, the Dark boss gets a double action the following night (2 kills, or 2 infections for the Zombie).', 'Kamu Kubu Terang. Jika kelompok mengeksekusimu, bos Kubu Gelap mendapat aksi ganda pada malam berikutnya (2 pembunuhan, atau 2 infeksi untuk Zombie).'],
     [['Make sure the group does not execute you.', 'Pastikan kelompok tidak mengeksekusimu.']]),
   // ==================== SHADOWS ====================
   mirage: r('mirage', 'shadow', 'Mirage',
@@ -117,6 +138,10 @@ export const ROLES: Record<RoleId, RoleInfo> = {
     ['If you are executed, the last player who voted for you dies.', 'Jika kamu dieksekusi, pemberi suara terakhir untukmu ikut mati.'],
     ['If the group executes you, the last player (in seating order) who voted for you dies the following night.', 'Jika kelompok mengeksekusimu, pemain terakhir (sesuai urutan duduk) yang memilihmu akan mati pada malam berikutnya.'],
     [['Being suspected is not all bad — it can cost them a player.', 'Dicurigai tidak selalu buruk — itu bisa membuat mereka kehilangan satu pemain.']]),
+  blight: r('blight', 'shadow', 'Blight',
+    ['Your presence adds 2 extra Cursed to the game.', 'Kehadiranmu menambah 2 Cursed ke dalam permainan.'],
+    ['You have no night action. When you are in the game, 2 Luminaries are replaced by 2 Cursed, so the Light side has more troublemakers.', 'Kamu tidak punya aksi malam. Saat kamu ada dalam permainan, 2 Luminary diganti 2 Cursed, sehingga Kubu Terang punya lebih banyak pengacau.'],
+    [['If the Light side notices many Cursed, they may suspect a Blight — bluff as a Cursed yourself.', 'Kalau Kubu Terang melihat banyak Cursed, mereka bisa curiga ada Blight — menyamarlah sebagai Cursed.']]),
   // ==================== NIGHTBRINGER ====================
   abyss: r('abyss', 'nightbringer', 'Abyss',
     ['Boss. From the second night, kill one player each night.', 'Bos. Mulai malam kedua, bunuh satu pemain tiap malam.'],
@@ -126,6 +151,23 @@ export const ROLES: Record<RoleId, RoleInfo> = {
     ['Boss. Kills each night and survives the first execution.', 'Bos. Membunuh tiap malam dan selamat dari eksekusi pertama.'],
     ['From the second night, choose 1 other player to kill each night. The first time you are executed, the execution fails mysteriously and you survive.', 'Mulai malam kedua, pilih 1 pemain lain untuk dibunuh setiap malam. Saat pertama kali kamu dieksekusi, eksekusi itu gagal secara misterius dan kamu selamat.'],
     [['A failed execution reveals a Fang — after that you must hide even better.', 'Eksekusi yang gagal membocorkan adanya Fang — setelah itu kamu harus bersembunyi lebih baik.']]),
+  gouge: r('gouge', 'nightbringer', 'Gouge',
+    ['Boss. Your victims die one night later — and their information turns false.', 'Bos. Korbanmu mati satu malam kemudian — dan informasinya menjadi palsu.'],
+    ['From the second night, choose 1 player each night. They die at the end of the following night. Until then all their information is false (they are not told). Aegis protection on the night you choose them saves them.', 'Mulai malam kedua, pilih 1 pemain setiap malam. Ia mati di akhir malam berikutnya. Sampai saat itu semua informasinya palsu (ia tidak diberi tahu). Perlindungan Aegis pada malam kamu memilihnya akan menyelamatkannya.'],
+    [['Target players with information abilities — their last report will mislead the group.', 'Incar pemain dengan kemampuan informasi — laporan terakhir mereka akan menyesatkan kelompok.']]),
+  bane: r('bane', 'nightbringer', 'Bane',
+    ['Boss. Killing a Cursed resets your attack for a second kill.', 'Bos. Membunuh Cursed membuat seranganmu ter-reset untuk pembunuhan kedua.'],
+    ['From the second night, choose up to 2 players in order. The first is attacked. If the first dies and was a Cursed, your attack resets and the second dies too.', 'Mulai malam kedua, pilih hingga 2 pemain secara berurutan. Pemain pertama diserang. Jika ia mati dan ternyata Cursed, seranganmu ter-reset dan pemain kedua ikut mati.'],
+    [['Players who admit to being Cursed are tempting first targets.', 'Pemain yang mengaku Cursed adalah target pertama yang menggoda.']]),
+  // ==================== SOLO BOSSES (Joker / Zombie modes, no Shadows) ====================
+  joker: r('joker', 'nightbringer', 'Joker',
+    ['Solo boss who never kills: lends a crown that forces someone else to kill, and moves seats.', 'Bos tunggal yang tidak pernah membunuh: meminjamkan mahkota yang memaksa orang lain membunuh, dan memindahkan kursi.'],
+    ['You cannot kill. Every night you may give the Crown to another living player, take it back, or leave it where it is — and you may swap the seats of 2 players (yourself included). The crown holder learns it at dawn and, from the next night on, must attack a seat NUMBER every night (they only see numbers, not names) or die in the morning. They keep their own side and do not know who you are — they may well be hunting you. All seat swaps of the night happen before the attack, so it hits whoever sits in that seat after the swaps. Night 1 is a blackout: all information is unreliable. You win when only 2 players remain; you lose the moment you die.', 'Kamu tidak bisa membunuh. Setiap malam kamu boleh memberikan Mahkota ke pemain hidup lain, menariknya kembali, atau membiarkannya — dan kamu boleh menukar kursi 2 pemain (termasuk dirimu). Pemegang mahkota tahu saat fajar dan, mulai malam berikutnya, wajib menyerang satu NOMOR kursi setiap malam (ia hanya melihat angka, bukan nama) atau ia mati saat pagi. Ia tetap di kubunya sendiri dan tidak tahu siapa kamu — bisa jadi ia sedang memburumu. Semua pertukaran kursi malam itu terjadi sebelum serangan, jadi serangan mengenai siapa pun yang duduk di kursi itu setelah pertukaran. Malam 1 adalah blackout: semua informasi tidak bisa dipercaya. Kamu menang jika hanya tersisa 2 pemain; kamu kalah begitu kamu mati.'],
+    [['The holder aims at the seat where they think you sit — move before they strike.', 'Pemegang mahkota mengincar kursi yang ia kira kamu duduki — pindahlah sebelum ia menyerang.'], ['Taking the crown away cancels that night’s attack; leaving it out too long is a gamble.', 'Menarik mahkota membatalkan serangan malam itu; membiarkannya terlalu lama adalah pertaruhan.'], ['This is the hardest role in the game — made for true manipulators.', 'Ini peran tersulit dalam permainan — dibuat untuk manipulator sejati.']]),
+  zombie: r('zombie', 'nightbringer', 'Zombie',
+    ['Solo boss. Infects a player every other night and grows a hidden horde.', 'Bos tunggal. Menginfeksi satu pemain dua malam sekali dan membangun gerombolan tersembunyi.'],
+    ['On odd nights (1, 3, 5…) choose 1 player to infect. At dawn they learn they are infected: they join the Dark side, keep their ability and learn who you are. Aegis and Tide block infections. Night 1 is a blackout for the Light side’s information. The Dark side wins when the horde (you + infected) outnumbers the healthy players. If you die, the game goes on: on odd nights every infected player chooses a kill, and the most chosen target dies.', 'Di malam ganjil (1, 3, 5…) pilih 1 pemain untuk diinfeksi. Saat fajar ia tahu dirinya terinfeksi: ia pindah ke Kubu Gelap, tetap punya kemampuannya, dan tahu siapa kamu. Aegis dan Tide memblokir infeksi. Malam 1 adalah blackout untuk informasi Kubu Terang. Kubu Gelap menang jika gerombolan (kamu + yang terinfeksi) lebih banyak dari pemain yang sehat. Jika kamu mati, permainan berlanjut: di malam ganjil setiap pemain terinfeksi memilih target, dan target yang paling banyak dipilih mati.'],
+    [['Infect trusted players — their word becomes your weapon.', 'Infeksi pemain yang dipercaya — ucapan mereka menjadi senjatamu.'], ['The Light side only wins when you AND every infected player are dead.', 'Kubu Terang baru menang jika kamu DAN semua pemain terinfeksi sudah mati.']]),
 };
 
 export const ROLE_IDS = Object.keys(ROLES) as RoleId[];
@@ -133,6 +175,11 @@ export const ROLE_IDS = Object.keys(ROLES) as RoleId[];
 export function rolesOfTeam(team: Team): RoleId[] {
   return ROLE_IDS.filter((id) => ROLES[id].team === team);
 }
+
+/** Bosses of the Standard mode (dealt together with Shadows). */
+export const STANDARD_BOSSES: RoleId[] = ['abyss', 'fang', 'gouge', 'bane'];
+/** Bosses of the solo modes (no Shadows). */
+export const SOLO_BOSSES: RoleId[] = ['joker', 'zombie'];
 
 export function isEvilTeam(team: Team): boolean {
   return team === 'shadow' || team === 'nightbringer';

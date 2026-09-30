@@ -4,8 +4,8 @@
  */
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { ROLES, TEAM_LABEL, TEAM_GOAL, ROLE_IDS, type RoleId, type Team } from '@/data/nightfallRoles';
-import { SETUP_TABLE, sideOf, type Lang, type Report } from '@/lib/party/nightfall';
+import { ROLES, TEAM_LABEL, ROLE_IDS, SOLO_BOSSES, type RoleId, type Team } from '@/data/nightfallRoles';
+import { SETUP_TABLE, type Lang, type Mode, type Report, type Side } from '@/lib/party/nightfall';
 import { RoleIcon } from '@/components/games/nightfall/RoleIcon';
 import { TEAM_COLOR } from '@/components/games/nightfall/palette';
 import { UI, RULES, reportLine } from '@/components/games/nightfall/texts';
@@ -47,15 +47,16 @@ export function RoleBook({ lang }: { lang: Lang }) {
           ))}
         </div>
       </div>
-      {TEAMS.map((team) => (
-        <section key={team}>
-          <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: TEAM_COLOR[team] }}>{TEAM_LABEL[team][lang]}</h3>
+      {[...TEAMS.map((team) => ({ key: team, color: TEAM_COLOR[team], title: TEAM_LABEL[team][lang], ids: ROLE_IDS.filter((id) => ROLES[id].team === team && !SOLO_BOSSES.includes(id)) })),
+        { key: 'solo', color: TEAM_COLOR.nightbringer, title: t.soloBosses, ids: SOLO_BOSSES }].map((group) => (
+        <section key={group.key}>
+          <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: group.color }}>{group.title}</h3>
           <div className="space-y-2">
-            {ROLE_IDS.filter((id) => ROLES[id].team === team).map((id) => (
-              <div key={id} className="flex gap-3 items-start border bg-black/40 p-2.5" style={{ borderColor: `${TEAM_COLOR[team]}55` }}>
+            {group.ids.map((id) => (
+              <div key={id} className="flex gap-3 items-start border bg-black/40 p-2.5" style={{ borderColor: `${group.color}55` }}>
                 <RoleIcon role={id} size={44} className="shrink-0" />
                 <div className="min-w-0">
-                  <p className="font-bold text-sm" style={{ color: TEAM_COLOR[team] }}>{ROLES[id].name}</p>
+                  <p className="font-bold text-sm" style={{ color: group.color }}>{ROLES[id].name}</p>
                   <p className="text-indigo-50/90 text-xs leading-snug">{ROLES[id].ability[lang]}</p>
                 </div>
               </div>
@@ -82,8 +83,8 @@ export function RulesView({ lang }: { lang: Lang }) {
   );
 }
 
-/** Private hint: role card, goal, ability, tips and every piece of information received so far. */
-export function RoleHint({ role, lang, reports, names }: { role: RoleId; lang: Lang; reports: Report[]; names: string[] }) {
+/** Private hint: role card, status, goal, ability, tips and every piece of information received so far. */
+export function RoleHint({ role, lang, mode, side, status, reports, names }: { role: RoleId; lang: Lang; mode: Mode; side: Side; status: string[]; reports: Report[]; names: string[] }) {
   const t = UI[lang];
   const info = ROLES[role];
   const color = TEAM_COLOR[info.team];
@@ -96,9 +97,10 @@ export function RoleHint({ role, lang, reports, names }: { role: RoleId; lang: L
           <p className="text-xs" style={{ color }}>{TEAM_LABEL[info.team][lang]}</p>
         </div>
       </div>
+      {status.map((line) => <p key={line} className="text-sm font-bold text-amber-200 border border-amber-400/40 bg-amber-500/10 p-2">{line}</p>)}
       <div>
         <p className="text-indigo-300/70 text-xs uppercase tracking-wider">{t.goal}</p>
-        <p className="text-sm text-indigo-50/90">{TEAM_GOAL[sideOf(role)][lang]}</p>
+        <p className="text-sm text-indigo-50/90">{t.goals[mode][side]}</p>
       </div>
       <div>
         <p className="text-indigo-300/70 text-xs uppercase tracking-wider">{t.ability}</p>

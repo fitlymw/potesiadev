@@ -67,6 +67,39 @@ const SYMBOLS: Record<RoleId, (c: string) => ReactNode> = {
       <circle cx="28" cy="28" r="3.5" fill={c} />
     </>
   ),
+  loom: (c) => (
+    <>
+      <path d="M17 49 L43 17" stroke={c} {...stroke} strokeWidth={3.5} />
+      <ellipse cx="45.5" cy="14.5" rx="3.5" ry="2.2" transform="rotate(-50 45.5 14.5)" stroke={c} {...stroke} strokeWidth={2} />
+      <path d="M46 15 Q56 26 45 34 Q34 42 42 50 Q48 55 53 50" stroke={c} {...stroke} strokeWidth={2.5} />
+    </>
+  ),
+  pyre: (c) => (
+    <>
+      <path d="M32 11 Q41 21 39 30 Q44 27 43 21 Q52 31 49 41 Q46 52 32 52 Q18 52 15 41 Q13 31 21 24 Q21 31 25 33 Q23 21 32 11Z" fill={c} />
+      <path d="M32 31 Q38 38 36 44 Q34 48 32 48 Q28 48 28 43 Q28 37 32 31Z" fill="#2a2110" />
+    </>
+  ),
+  apex: (c) => (
+    <>
+      <path d="M9 50 L25 24 L33 36 L39 28 L55 50Z" stroke={c} {...stroke} />
+      <path d="M25 24 V11 L35 15 L25 19" stroke={c} {...stroke} strokeWidth={2.5} />
+      <path d="M19 34 L25 40 L29 36" stroke={c} {...stroke} strokeWidth={2} />
+    </>
+  ),
+  pact: (c) => (
+    <>
+      <circle cx="25" cy="32" r="12" stroke={c} {...stroke} />
+      <circle cx="39" cy="32" r="12" stroke={c} {...stroke} />
+      <path d="M32 22 L34 26 L32 30 L30 26Z" fill={c} />
+    </>
+  ),
+  tide: (c) => (
+    <>
+      <path d="M11 40 Q17 35 23 40 T35 40 T47 40 T53 40 M11 48 Q17 43 23 48 T35 48 T47 48 T53 48" stroke={c} {...stroke} strokeWidth={2.5} />
+      <path d="M19 17 H45 L40 12 M45 27 H19 L24 32" stroke={c} {...stroke} strokeWidth={2.5} />
+    </>
+  ),
   echo: (c) => (
     <>
       <circle cx="20" cy="32" r="4" fill={c} />
@@ -105,6 +138,12 @@ const SYMBOLS: Record<RoleId, (c: string) => ReactNode> = {
       <path d="M44 17 L47 22 M40 18 L41 23" stroke={c} strokeWidth={2} strokeLinecap="round" />
     </>
   ),
+  blight: (c) => (
+    <>
+      <path d="M32 50 V30 M32 36 Q22 34 18 24 Q28 22 32 32 M32 30 Q40 26 44 16 Q34 16 32 26" stroke={c} {...stroke} strokeWidth={2.5} />
+      <circle cx="17" cy="45" r="2.5" fill={c} /><circle cx="46" cy="40" r="3" fill={c} /><circle cx="24" cy="15" r="2" fill={c} /><circle cx="50" cy="26" r="1.8" fill={c} /><circle cx="42" cy="50" r="2" fill={c} />
+    </>
+  ),
   abyss: (c) => (
     <>
       <path d="M32 12 Q48 12 48 28 Q48 36 42 39 V46 H22 V39 Q16 36 16 28 Q16 12 32 12Z" fill={c} />
@@ -118,6 +157,32 @@ const SYMBOLS: Record<RoleId, (c: string) => ReactNode> = {
       <path d="M13 20 Q32 30 51 20 Q48 28 32 30 Q16 28 13 20Z" fill={c} />
       <path d="M22 27 L25.5 47 L30 29Z M42 27 L38.5 47 L34 29Z" fill={c} />
       <circle cx="25.5" cy="50" r="1.8" fill={c} /><circle cx="38.5" cy="50" r="1.8" fill={c} />
+    </>
+  ),
+  gouge: (c) => (
+    <>
+      <path d="M19 13 Q24 30 18 49 M31 11 Q36 30 30 51 M43 13 Q48 30 42 49" stroke={c} {...stroke} strokeWidth={4} />
+      <circle cx="18" cy="54" r="1.8" fill={c} /><circle cx="42" cy="54" r="1.8" fill={c} />
+    </>
+  ),
+  bane: (c) => (
+    <>
+      <path d="M17 49 L45 17 M47 49 L19 17" stroke={c} {...stroke} strokeWidth={3.5} />
+      <path d="M45 17 L49 13 M19 17 L15 13 M14 44 L22 52 M50 44 L42 52" stroke={c} {...stroke} strokeWidth={3} />
+    </>
+  ),
+  joker: (c) => (
+    <>
+      <path d="M17 41 Q13 30 11 21 Q22 24 26 34 Q27 21 32 12 Q37 21 38 34 Q42 24 53 21 Q51 30 47 41Z" fill={c} />
+      <rect x="16" y="41" width="32" height="7" rx="2" fill={c} />
+      <circle cx="11" cy="19" r="3.2" fill={c} /><circle cx="32" cy="10" r="3.2" fill={c} /><circle cx="53" cy="19" r="3.2" fill={c} />
+      <path d="M32 42 L35 44.5 L32 47 L29 44.5Z" fill="#0b0306" />
+    </>
+  ),
+  zombie: (c) => (
+    <>
+      <path d="M10 52 H54" stroke={c} {...stroke} />
+      <path d="M24 52 Q21 44 24 36 V22 M24 36 Q27 33 29 34 V15 M29 34 H33 V13 M33 34 H37 V17 M37 36 Q40 36 42 30 L44 26 M37 36 Q38 46 36 52" stroke={c} {...stroke} strokeWidth={2.8} />
     </>
   ),
 };

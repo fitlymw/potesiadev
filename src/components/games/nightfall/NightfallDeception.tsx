@@ -1,46 +1,56 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, ScrollText, Volume2, VolumeX, Plus, Trash2, Users, EyeOff, Moon, Sun, Skull, Crosshair, Gavel, Pause, Play, RotateCcw, HelpCircle, Ghost } from 'lucide-react';
+import { ArrowLeft, BookOpen, ScrollText, Volume2, VolumeX, Plus, Trash2, Users, EyeOff, Moon, Sun, Skull, Crosshair, Gavel, Pause, Play, RotateCcw, HelpCircle, Ghost, Megaphone, Lock, Shuffle } from 'lucide-react';
 import { useGamification } from '@/context/GamificationContext';
 import { pauseBgMusic, resumeBgMusic } from '@/lib/audio';
 import { RoundTable } from '@/components/games/party/RoundTable';
 import { PLAYER_COLORS } from '@/components/games/party/colors';
-import { ROLES, TEAM_LABEL } from '@/data/nightfallRoles';
+import { ROLES, TEAM_LABEL, type RoleId } from '@/data/nightfallRoles';
 import {
   reducer,
   initialState,
   pendingPlayer,
   nightSpec,
+  jokerOptions,
+  sideOfPlayer,
+  seatOf,
   lapStart,
   voteThreshold,
   validateNightfallPlayers,
   shuffleSeats,
   TIMING,
+  MODES,
   NF_MIN_PLAYERS,
   NF_MAX_PLAYERS,
   type NfState,
   type Action,
   type Lang,
+  type Mode,
+  type JokerMove,
+  type NightSpec,
   type PublicEvent,
+  type ChronEntry,
 } from '@/lib/party/nightfall';
 import { startNightMusic, stopNightMusic, sfxTick, sfxGlitch, sfxDeath, sfxMorning, sfxExecution, sfxBell, sfxVictory, buzz, isMuted, setMuted } from '@/lib/nightfallSound';
 import { RoleIcon } from '@/components/games/nightfall/RoleIcon';
 import { TEAM_COLOR } from '@/components/games/nightfall/palette';
 import { Overlay, RoleBook, RulesView, RoleHint } from '@/components/games/nightfall/Panels';
-import { UI, reportLine, type UIText } from '@/components/games/nightfall/texts';
+import { UI, reportLine, chronicleLine, type UIText } from '@/components/games/nightfall/texts';
 import { useTurnClock, useDayClock } from '@/components/games/nightfall/useClock';
 
-const STORAGE_KEY = 'nightfall-game';
+const STORAGE_KEY = 'nightfall-game-v2';
 const PIXEL = { fontFamily: '"Press Start 2P", cursive' };
 const primaryBtn = 'w-full py-4 border-2 border-indigo-400 bg-indigo-500/15 text-indigo-100 text-[10px] sm:text-xs disabled:opacity-40';
+const secondaryBtn = 'w-full py-3 border border-indigo-500/50 text-indigo-100 text-[10px] disabled:opacity-40';
+const MODE_ICON: Record<Mode, RoleId> = { standard: 'abyss', joker: 'joker', zombie: 'zombie' };
 
 function loadState(): NfState {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as NfState;
-      if (parsed && typeof parsed.phase === 'string' && Array.isArray(parsed.players)) return reducer(parsed, { type: 'RESUME_AT_PASS' });
+      if (parsed && typeof parsed.phase === 'string' && Array.isArray(parsed.players) && Array.isArray(parsed.seats)) return reducer(parsed, { type: 'RESUME_AT_PASS' });
     }
   } catch {
     // Corrupt or unavailable storage: start fresh
@@ -61,6 +71,13 @@ function eventLine(e: PublicEvent, state: NfState, t: UIText): string | null {
     case 'novaHit': return t.events.novaHit(nm(e.shooter), nm(e.target));
     case 'novaMiss': return t.events.novaMiss(nm(e.shooter), nm(e.target));
     case 'deaths': return e.players.length ? t.deathsSome(nameList(state, e.players)) : t.deathsNone;
+    case 'saved': return t.events.saved(nm(e.target), e.by, e.what);
+    case 'pyre': return t.events.pyre(nm(e.by), nm(e.target));
+    case 'pactDeath': return t.events.pactDeath(nm(e.target), nm(e.partner));
+    case 'crownBurden': return t.events.crownBurden(nm(e.target));
+    case 'revived': return t.events.revived(nm(e.target));
+    case 'apex': return t.events.apex;
+    case 'seats': return null;
   }
 }
 
@@ -79,21 +96,21 @@ function ClockBar({ remaining, total, label }: { remaining: number; total: numbe
   );
 }
 
-function PlayerPicker({ state, selected, onToggle, allowSelf, self, max }: { state: NfState; selected: number[]; onToggle: (p: number) => void; allowSelf: boolean; self: number; max: number }) {
+/** Players listed in seat order; `canPick` decides who is selectable. */
+function PlayerPicker({ state, selected, onToggle, canPick, self, ordered, t }: { state: NfState; selected: number[]; onToggle: (p: number) => void; canPick: (p: number) => boolean; self: number; ordered?: boolean; t: UIText }) {
   return (
     <div className="grid grid-cols-2 gap-2">
-      {state.players.map((name, p) => {
-        const disabled = !state.alive[p] || (!allowSelf && p === self);
+      {state.seats.map((p) => {
         const on = selected.includes(p);
         return (
           <button
             key={p}
-            disabled={disabled || (!on && selected.length >= max && max > 1)}
+            disabled={!canPick(p)}
             onClick={() => onToggle(p)}
             className={`py-2.5 px-2 border text-sm truncate disabled:opacity-30 ${on ? 'text-black font-bold' : 'border-indigo-600/50 text-indigo-100'}`}
             style={on ? { background: PLAYER_COLORS[p], borderColor: PLAYER_COLORS[p] } : undefined}
           >
-            {name}{p === self ? ' •' : ''}
+            {state.players[p]}{p === self ? ' •' : ''}{ordered && on ? ` (${t.order(selected.indexOf(p))})` : ''}
           </button>
         );
       })}
@@ -101,8 +118,55 @@ function PlayerPicker({ state, selected, onToggle, allowSelf, self, max }: { sta
   );
 }
 
+const toggleIn = (prev: number[], p: number, max: number) => (prev.includes(p) ? prev.filter((x) => x !== p) : max === 1 ? [p] : prev.length < max ? [...prev, p] : prev);
+
+function RoleCard({ state, player, t }: { state: NfState; player: number; t: UIText }) {
+  const role = state.roles[player];
+  const color = TEAM_COLOR[ROLES[role].team];
+  return (
+    <div className="border p-3 bg-black/40 space-y-2" style={{ borderColor: `${color}66` }}>
+      <div className="flex items-center gap-3">
+        <RoleIcon role={role} size={52} />
+        <div className="min-w-0">
+          <p className="text-xs text-indigo-300/70">{state.players[player]} · {t.yourRole} · {t.yourSeat(seatOf(state, player) + 1)}</p>
+          <p className="text-lg font-bold" style={{ color }}>{ROLES[role].name}{!state.alive[player] ? ' 👻' : ''}</p>
+          <p className="text-[11px]" style={{ color }}>{TEAM_LABEL[ROLES[role].team][state.lang]}</p>
+        </div>
+      </div>
+      {state.crowned === player && <p className="text-sm font-bold text-amber-200">{t.crownBadge}</p>}
+      {state.infected[player] && <p className="text-sm font-bold text-lime-300">{t.infectedBadge}</p>}
+    </div>
+  );
+}
+
+function promptFor(state: NfState, player: number, spec: NightSpec, t: UIText): string {
+  if (!state.alive[player]) return t.prompt.dead;
+  switch (spec.kind) {
+    case 'aura': return t.prompt.aura;
+    case 'protect': return t.prompt.protect;
+    case 'poison': return t.prompt.poison;
+    case 'kill': return t.prompt.kill(spec.count, spec.allowSelf);
+    case 'gouge': return t.prompt.gouge(spec.count);
+    case 'bane': return t.prompt.bane;
+    case 'revive': return t.prompt.revive;
+    case 'revenge': return t.prompt.revenge;
+    case 'tide': return t.prompt.tide(state.tideLeft);
+    case 'infect': return t.prompt.infect(spec.count);
+    case 'frenzy': return t.prompt.frenzy;
+    case 'crownKill': return t.prompt.crownKill;
+    default: return t.prompt.dummy;
+  }
+}
+
 // ==================== PRIVATE NIGHT TURN ====================
-function NightTurn({ state, dispatch, t, onHint }: { state: NfState; dispatch: (a: Action) => void; t: UIText; onHint: () => void }) {
+type TurnProps = { state: NfState; dispatch: (a: Action) => void; t: UIText; onHint: () => void };
+
+function NightTurn(props: TurnProps) {
+  const player = pendingPlayer(props.state)!;
+  return nightSpec(props.state, player).kind === 'joker' ? <JokerTurn {...props} /> : <ActionTurn {...props} />;
+}
+
+function ActionTurn({ state, dispatch, t, onHint }: TurnProps) {
   const player = pendingPlayer(state)!;
   const spec = nightSpec(state, player);
   const [selected, setSelected] = useState<number[]>([]);
@@ -115,37 +179,104 @@ function NightTurn({ state, dispatch, t, onHint }: { state: NfState; dispatch: (
     sfxGlitch();
     buzz([60, 40, 60]);
     const current = selectedRef.current;
-    dispatch({ type: 'SUBMIT_NIGHT', targets: current.length === spec.count ? current : [] });
-  }, [dispatch, spec.count]);
+    dispatch({ type: 'SUBMIT_NIGHT', targets: spec.accept.includes(current.length) ? current : [] });
+  }, [dispatch, spec.accept]);
   const { elapsed, remaining } = useTurnClock(total, onExpire);
-  const role = state.roles[player];
-  const complete = selected.length === spec.count;
   const unlocked = elapsed >= TIMING.minTurn;
-  const toggle = (p: number) =>
-    setSelected((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : spec.count === 1 ? [p] : prev.length < spec.count ? [...prev, p] : prev));
-  const prompt = !state.alive[player]
-    ? t.prompt.dead
-    : spec.kind === 'aura' ? t.prompt.aura
-    : spec.kind === 'protect' ? t.prompt.protect
-    : spec.kind === 'poison' ? t.prompt.poison
-    : spec.kind === 'kill' ? t.prompt.kill(spec.count, spec.allowSelf)
-    : t.prompt.dummy;
+  const ready = selected.length > 0 && spec.accept.includes(selected.length);
+  const toggle = (p: number) => setSelected((prev) => toggleIn(prev, p, spec.count));
+  const canPick = (p: number) =>
+    (spec.pool === 'dead' ? !state.alive[p] : state.alive[p]) && (spec.allowSelf || p !== player) && !(spec.excludeInfected && state.infected[p]);
+  const seatNames = state.seats.map((p) => state.players[p]);
   return (
     <div className="space-y-4 pb-20">
       <ClockBar remaining={remaining} total={total} label={t.night(state.night)} />
-      <div className="flex items-center gap-3 border p-3 bg-black/40" style={{ borderColor: `${TEAM_COLOR[ROLES[role].team]}66` }}>
-        <RoleIcon role={role} size={52} />
-        <div className="min-w-0">
-          <p className="text-xs text-indigo-300/70">{state.players[player]} · {t.yourRole}</p>
-          <p className="text-lg font-bold" style={{ color: TEAM_COLOR[ROLES[role].team] }}>{ROLES[role].name}{!state.alive[player] ? ' 👻' : ''}</p>
-          <p className="text-[11px]" style={{ color: TEAM_COLOR[ROLES[role].team] }}>{TEAM_LABEL[ROLES[role].team][state.lang]}</p>
-        </div>
-      </div>
+      <RoleCard state={state} player={player} t={t} />
+      {state.crowned === player && <p className="text-xs text-amber-200/80">{t.crownNote}</p>}
       {state.night === 1 && <p className="text-xs text-amber-200/80">{t.keepSecret}</p>}
-      <p className="text-sm text-indigo-50">{prompt}</p>
-      <PlayerPicker state={state} selected={selected} onToggle={toggle} allowSelf={spec.allowSelf} self={player} max={spec.count} />
+      <p className="text-sm text-indigo-50">{promptFor(state, player, spec, t)}</p>
+      {spec.pool === 'seat' ? (
+        <div className="border border-amber-400/40 bg-black/30 p-2">
+          <RoundTable
+            players={seatNames}
+            startsLabel=""
+            hideNames
+            colors={state.seats.map(() => '#a5b4fc')}
+            ring={state.seats.map((_, k) => (selected.includes(k) ? '#fbbf24' : null))}
+            disabledSeats={state.seats.map((p) => p === player)}
+            center={[t.yourSeat(seatOf(state, player) + 1), t.seatChosen(selected.length ? selected[0] + 1 : null)]}
+            onSeat={toggle}
+          />
+        </div>
+      ) : (
+        <PlayerPicker state={state} selected={selected} onToggle={toggle} canPick={canPick} self={player} ordered={spec.kind === 'bane'} t={t} />
+      )}
       {spec.count > 1 && <p className="text-xs text-indigo-300/70">{t.selected(selected.length, spec.count)}</p>}
-      <button disabled={!complete || !unlocked} onClick={() => dispatch({ type: 'SUBMIT_NIGHT', targets: selected })} className={primaryBtn} style={PIXEL}>
+      <button disabled={!ready || !unlocked} onClick={() => dispatch({ type: 'SUBMIT_NIGHT', targets: selected })} className={primaryBtn} style={PIXEL}>
+        {unlocked ? t.hideAndPass : t.minWait(Math.ceil(TIMING.minTurn - elapsed))}
+      </button>
+      {spec.accept.includes(0) && (
+        <button disabled={!unlocked} onClick={() => dispatch({ type: 'SUBMIT_NIGHT', targets: [] })} className={secondaryBtn} style={PIXEL}>{t.skipAbility}</button>
+      )}
+      <HintButton t={t} onHint={onHint} />
+    </div>
+  );
+}
+
+function JokerTurn({ state, dispatch, t, onHint }: TurnProps) {
+  const player = pendingPlayer(state)!;
+  const { canRecall } = jokerOptions(state);
+  const [swap, setSwap] = useState<number[]>([]);
+  const [move, setMove] = useState<JokerMove>('keep');
+  const [giveTo, setGiveTo] = useState<number | null>(null);
+  const total = state.night === 1 ? TIMING.nightTurnFirst : TIMING.nightTurn;
+  const plan = useRef({ swap, move, giveTo });
+  useEffect(() => {
+    plan.current = { swap, move, giveTo };
+  }, [swap, move, giveTo]);
+  const submit = useCallback(() => {
+    const p = plan.current;
+    const mode: JokerMove = p.move === 'give' && p.giveTo === null ? 'keep' : p.move;
+    dispatch({ type: 'SUBMIT_NIGHT', targets: mode === 'give' ? [p.giveTo!] : [], joker: { mode, swap: p.swap.length === 2 ? p.swap : [] } });
+  }, [dispatch]);
+  const onExpire = useCallback(() => {
+    sfxGlitch();
+    submit();
+  }, [submit]);
+  const { elapsed, remaining } = useTurnClock(total, onExpire);
+  const unlocked = elapsed >= TIMING.minTurn;
+  const ready = (move !== 'give' || giveTo !== null) && swap.length !== 1;
+  const holder = state.crowned;
+  const moveBtn = (m: JokerMove, label: string, disabled = false) => (
+    <button key={m} disabled={disabled} onClick={() => setMove(m)} className={`py-2.5 px-2 border text-sm disabled:opacity-30 ${move === m ? 'border-amber-300 bg-amber-500/20 text-amber-100 font-bold' : 'border-indigo-600/50 text-indigo-100'}`}>{label}</button>
+  );
+  return (
+    <div className="space-y-4 pb-20">
+      <ClockBar remaining={remaining} total={total} label={t.night(state.night)} />
+      <RoleCard state={state} player={player} t={t} />
+      {state.night === 1 && <p className="text-xs text-amber-200/80">{t.keepSecret}</p>}
+      <div className="space-y-2">
+        <p className="text-sm text-indigo-50 flex items-center gap-2"><Shuffle className="w-4 h-4" />{t.joker.swapTitle}</p>
+        <PlayerPicker state={state} selected={swap} onToggle={(p) => setSwap((prev) => toggleIn(prev, p, 2))} canPick={(p) => state.alive[p]} self={player} t={t} />
+        <p className="text-xs text-indigo-300/70">{t.selected(swap.length, 2)}</p>
+      </div>
+      <div className="space-y-2 border border-red-500/30 bg-red-500/5 p-3">
+        <p className="text-sm font-bold text-red-200">👑 {t.joker.crownTitle}</p>
+        <p className="text-xs text-indigo-200/80">{t.joker.holderNow(holder !== null ? state.players[holder] : null)}</p>
+        <div className="grid grid-cols-1 gap-1.5">
+          {moveBtn('give', t.joker.give)}
+          {moveBtn('recall', t.joker.recall, !canRecall)}
+          {moveBtn('keep', t.joker.keep)}
+        </div>
+        {move === 'give' && (
+          <>
+            <p className="text-xs text-indigo-300/70">{t.joker.giveHint}</p>
+            <PlayerPicker state={state} selected={giveTo === null ? [] : [giveTo]} onToggle={(p) => setGiveTo((prev) => (prev === p ? null : p))} canPick={(p) => state.alive[p] && p !== player && p !== holder} self={player} t={t} />
+          </>
+        )}
+        {move === 'recall' && <p className="text-xs text-indigo-300/70">{t.joker.recallHint}</p>}
+      </div>
+      <button disabled={!ready || !unlocked} onClick={submit} className={primaryBtn} style={PIXEL}>
         {unlocked ? t.hideAndPass : t.minWait(Math.ceil(TIMING.minTurn - elapsed))}
       </button>
       <HintButton t={t} onHint={onHint} />
@@ -171,8 +302,9 @@ function NightEnd({ state, dispatch, t }: { state: NfState; dispatch: (a: Action
       sfxDeath();
       buzz([300, 150, 300]);
     } else sfxMorning();
+    if (state.seatsBefore) window.setTimeout(() => sfxGlitch(), 1800);
     dispatch({ type: 'SHOW_MORNING' });
-  }, [dispatch, state.lastNightDeaths.length]);
+  }, [dispatch, state.lastNightDeaths.length, state.seatsBefore]);
   const { remaining } = useTurnClock(TIMING.phoneToCenter, onExpire);
   return (
     <div className="flex flex-col items-center text-center pt-10 space-y-6">
@@ -185,13 +317,33 @@ function NightEnd({ state, dispatch, t }: { state: NfState; dispatch: (a: Action
   );
 }
 
-// ==================== PRIVATE DAWN REPORT ====================
-function DawnTurn({ state, dispatch, t, onHint }: { state: NfState; dispatch: (a: Action) => void; t: UIText; onHint: () => void }) {
+// ==================== PRIVATE DAWN REPORT + READ-ALOUD CHOICE ====================
+function DawnTurn({ state, dispatch, t, onHint }: TurnProps) {
+  const [speaking, setSpeaking] = useState(false);
+  const player = pendingPlayer(state)!;
+  const report = (state.reports[player] ?? []).find((r) => r.night === state.night);
+  const lines = (report?.items ?? []).map((item) => reportLine(item, state.players, state.lang));
+  return speaking ? (
+    <div className="space-y-4 pb-20">
+      <div className="flex items-center gap-2 text-amber-200"><Megaphone className="w-5 h-5" /><h2 className="text-sm" style={PIXEL}>{t.speakingTitle}</h2></div>
+      <p className="text-sm text-indigo-200/80">{t.speakingHint}</p>
+      <div className="border-2 border-amber-400/50 bg-amber-500/5 p-4 space-y-2">
+        {lines.map((line, i) => <p key={i} className="text-lg text-indigo-50 leading-relaxed">{line}</p>)}
+      </div>
+      <button onClick={() => dispatch({ type: 'DONE_DAWN', shared: true })} className={primaryBtn} style={PIXEL}>{t.doneSpeaking}</button>
+      <HintButton t={t} onHint={onHint} />
+    </div>
+  ) : (
+    <DawnRead state={state} dispatch={dispatch} t={t} onHint={onHint} lines={lines} onShare={() => setSpeaking(true)} />
+  );
+}
+
+function DawnRead({ state, dispatch, t, onHint, lines, onShare }: TurnProps & { lines: string[]; onShare: () => void }) {
   const player = pendingPlayer(state)!;
   const total = state.night === 1 ? TIMING.dawnTurnFirst : TIMING.dawnTurn;
-  const onExpire = useCallback(() => dispatch({ type: 'DONE_DAWN' }), [dispatch]);
+  const onExpire = useCallback(() => dispatch({ type: 'DONE_DAWN', shared: false }), [dispatch]);
   const { elapsed, remaining } = useTurnClock(total, onExpire);
-  const report = (state.reports[player] ?? []).find((r) => r.night === state.night);
+  const unlocked = elapsed >= TIMING.minTurn;
   const role = state.roles[player];
   return (
     <div className="space-y-4 pb-20">
@@ -204,27 +356,64 @@ function DawnTurn({ state, dispatch, t, onHint }: { state: NfState; dispatch: (a
         </div>
       </div>
       <div className="border border-indigo-400/40 bg-indigo-950/40 p-4 space-y-2">
-        {(report?.items ?? []).map((item, i) => <p key={i} className="text-indigo-50 leading-relaxed">{reportLine(item, state.players, state.lang)}</p>)}
+        {lines.map((line, i) => <p key={i} className="text-indigo-50 leading-relaxed">{line}</p>)}
       </div>
-      <button disabled={elapsed < TIMING.minTurn} onClick={() => dispatch({ type: 'DONE_DAWN' })} className={primaryBtn} style={PIXEL}>
-        {elapsed >= TIMING.minTurn ? t.readPass : t.minWait(Math.ceil(TIMING.minTurn - elapsed))}
-      </button>
+      <p className="text-xs text-indigo-200/80">{t.shareQuestion}</p>
+      <div className="grid grid-cols-1 gap-2">
+        <button disabled={!unlocked} onClick={onShare} className={`${primaryBtn} flex items-center justify-center gap-2`} style={PIXEL}>
+          <Megaphone className="w-4 h-4" />{unlocked ? t.shareRead : t.minWait(Math.ceil(TIMING.minTurn - elapsed))}
+        </button>
+        <button disabled={!unlocked} onClick={() => dispatch({ type: 'DONE_DAWN', shared: false })} className={`${secondaryBtn} flex items-center justify-center gap-2`} style={PIXEL}>
+          <Lock className="w-4 h-4" />{t.shareKeep}
+        </button>
+      </div>
       <HintButton t={t} onHint={onHint} />
     </div>
   );
 }
 
-// ==================== DAY ====================
+// ==================== TABLE & STATUS ====================
 function StatusList({ state, t }: { state: NfState; t: UIText }) {
   return (
     <div className="grid grid-cols-2 gap-1.5">
-      {state.players.map((name, p) => (
+      {state.seats.map((p, k) => (
         <div key={p} className={`flex items-center gap-2 border px-2 py-1.5 text-sm ${state.alive[p] ? 'border-indigo-600/40' : 'border-zinc-700 opacity-60'}`}>
-          <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center text-black shrink-0" style={{ background: state.alive[p] ? PLAYER_COLORS[p] : '#52525b' }}>{p + 1}</span>
-          <span className={`truncate flex-1 ${state.alive[p] ? '' : 'line-through'}`}>{name}</span>
+          <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center text-black shrink-0" style={{ background: state.alive[p] ? PLAYER_COLORS[p] : '#52525b' }}>{k + 1}</span>
+          <span className={`truncate flex-1 ${state.alive[p] ? '' : 'line-through'}`}>{state.players[p]}</span>
           {!state.alive[p] && (state.ghostVote[p] ? <Ghost className="w-3.5 h-3.5 text-indigo-300" aria-label={t.ghost} /> : <Skull className="w-3.5 h-3.5 text-zinc-500" aria-label={t.dead} />)}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** The table as it is now; when seats changed overnight, also how it was and who must move. */
+function SeatingView({ state, t }: { state: NfState; t: UIText }) {
+  const names = (seats: number[]) => seats.map((p) => state.players[p]);
+  const colors = (seats: number[]) => seats.map((p) => PLAYER_COLORS[p]);
+  const before = state.seatsBefore;
+  const pairs = state.morningEvents.flatMap((e) => (e.k === 'seats' ? e.pairs : []));
+  const moved = state.seats.map((p, k) => (before && before[k] !== p ? '#fbbf24' : null));
+  return (
+    <div className="space-y-3">
+      {before && (
+        <div className="border-2 border-amber-400/60 bg-amber-500/10 p-3 space-y-1">
+          <p className="font-bold text-amber-200 flex items-center gap-2"><Shuffle className="w-4 h-4" />{t.seatsChanged}</p>
+          {pairs.map(([a, b], i) => <p key={i} className="text-sm text-amber-50">{t.swapNow(state.players[a], state.players[b])}</p>)}
+        </div>
+      )}
+      {before && (
+        <div className="border border-indigo-500/20 bg-black/20 p-2 opacity-70">
+          <p className="text-center text-xs text-indigo-300/70">{t.before}</p>
+          <div className="max-w-[240px] mx-auto">
+            <RoundTable players={names(before)} startsLabel="" colors={colors(before)} dim={before.map((p) => !state.alive[p])} center={[t.before, '']} />
+          </div>
+        </div>
+      )}
+      <div className="border border-indigo-500/30 bg-black/30 p-2">
+        <p className="text-center text-xs text-indigo-300/70">{before ? t.after : t.currentSeating}</p>
+        <RoundTable players={names(state.seats)} startsLabel="" colors={colors(state.seats)} dim={state.seats.map((p) => !state.alive[p])} ring={moved} center={[before ? t.after : t.currentSeating, '']} />
+      </div>
     </div>
   );
 }
@@ -256,6 +445,17 @@ function leadingNomination(state: NfState) {
   return leaders.length === 1 ? leaders[0] : null;
 }
 
+function EventLines({ events, state, t }: { events: PublicEvent[]; state: NfState; t: UIText }) {
+  return (
+    <>
+      {events.map((e, i) => {
+        const line = eventLine(e, state, t);
+        return line ? <p key={i} className={`text-sm ${e.k === 'saved' || e.k === 'revived' ? 'text-emerald-200 font-bold' : 'text-indigo-50'}`}>{line}</p> : null;
+      })}
+    </>
+  );
+}
+
 function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Action) => void; t: UIText }) {
   const [mode, setMode] = useState<null | 'nominate' | 'nova'>(null);
   const [nominator, setNominator] = useState<number | null>(null);
@@ -285,13 +485,23 @@ function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Actio
     </button>
   );
   const leader = leadingNomination(state);
+  const order = state.players.map((_, k) => state.seats[(lapStart(state) + k) % state.players.length]);
+  const shared = order.filter((p) => state.testimony[p] === true);
+  const kept = order.filter((p) => state.testimony[p] === false);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-amber-200"><Sun className="w-5 h-5" /><h2 className="text-sm" style={PIXEL}>{t.day(state.night)}</h2></div>
       <div className="space-y-1">
-        {state.events.map((e, i) => <p key={i} className="text-sm text-indigo-50">{eventLine(e, state, t)}</p>)}
+        <EventLines events={state.morningEvents} state={state} t={t} />
+        <EventLines events={state.events} state={state} t={t} />
       </div>
+      {(shared.length > 0 || kept.length > 0) && (
+        <div className="border border-indigo-500/30 bg-black/30 p-3 text-sm space-y-1">
+          <p><Megaphone className="inline w-4 h-4 mr-1 text-amber-300" /><span className="text-indigo-300/80">{t.testimonyShared}:</span> {nameList(state, shared) || '—'}</p>
+          <p><Lock className="inline w-4 h-4 mr-1 text-indigo-300" /><span className="text-indigo-300/80">{t.testimonyKept}:</span> {nameList(state, kept) || '—'}</p>
+        </div>
+      )}
       <StatusList state={state} t={t} />
 
       {state.dayStage === 'discussion' ? (
@@ -318,7 +528,7 @@ function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Actio
           {mode === null && (
             <div className="grid grid-cols-1 gap-2">
               <button onClick={() => setMode('nominate')} className={primaryBtn} style={PIXEL}><Gavel className="inline w-4 h-4 mr-2" />{t.newNomination}</button>
-              <button onClick={() => setMode('nova')} className="w-full py-3 border border-indigo-500/50 text-indigo-100 text-[10px]" style={PIXEL}><Crosshair className="inline w-4 h-4 mr-2" />{t.dayAbility}</button>
+              <button onClick={() => setMode('nova')} className={secondaryBtn} style={PIXEL}><Crosshair className="inline w-4 h-4 mr-2" />{t.dayAbility}</button>
               <button onClick={() => { if (window.confirm(t.confirmEndDay)) endDay(); }} className="w-full py-3 border border-red-500/60 text-red-200 text-[10px]" style={PIXEL}>{t.endDay}</button>
             </div>
           )}
@@ -326,12 +536,12 @@ function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Actio
           {mode === 'nominate' && (
             <div className="border border-indigo-400/40 bg-indigo-950/40 p-3 space-y-3">
               <p className="text-sm">{t.nominator}</p>
-              <div className="grid grid-cols-2 gap-1.5">{state.players.map((_, p) => chip(p, nominator === p, () => setNominator(p), !state.alive[p] || state.nominations.some((x) => x.nominator === p)))}</div>
+              <div className="grid grid-cols-2 gap-1.5">{state.seats.map((p) => chip(p, nominator === p, () => setNominator(p), !state.alive[p] || state.nominations.some((x) => x.nominator === p)))}</div>
               <p className="text-sm">{t.nominee}</p>
-              <div className="grid grid-cols-2 gap-1.5">{state.players.map((_, p) => chip(p, nominee === p, () => setNominee(p), !state.alive[p] || state.nominations.some((x) => x.nominee === p)))}</div>
+              <div className="grid grid-cols-2 gap-1.5">{state.seats.map((p) => chip(p, nominee === p, () => setNominee(p), !state.alive[p] || state.nominations.some((x) => x.nominee === p)))}</div>
               <p className="text-sm">{t.voters}</p>
               <div className="grid grid-cols-2 gap-1.5">
-                {state.players.map((_, p) => chip(p, voters.includes(p), () => setVoters((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p])), !state.alive[p] && !state.ghostVote[p], !state.alive[p] ? ' 👻' : ''))}
+                {state.seats.map((p) => chip(p, voters.includes(p), () => setVoters((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p])), !state.alive[p] && !state.ghostVote[p], !state.alive[p] ? ' 👻' : ''))}
               </div>
               <p className={`text-sm font-bold ${votes >= need ? 'text-emerald-300' : 'text-indigo-200'}`}>{t.votesCount(votes, need)}</p>
               <div className="flex gap-2">
@@ -344,9 +554,9 @@ function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Actio
           {mode === 'nova' && (
             <div className="border border-indigo-400/40 bg-indigo-950/40 p-3 space-y-3">
               <p className="text-sm">{t.shooter}</p>
-              <div className="grid grid-cols-2 gap-1.5">{state.players.map((_, p) => chip(p, shooter === p, () => setShooter(p), !state.alive[p]))}</div>
+              <div className="grid grid-cols-2 gap-1.5">{state.seats.map((p) => chip(p, shooter === p, () => setShooter(p), !state.alive[p]))}</div>
               <p className="text-sm">{t.target}</p>
-              <div className="grid grid-cols-2 gap-1.5">{state.players.map((_, p) => chip(p, target === p, () => setTarget(p), !state.alive[p] || p === shooter))}</div>
+              <div className="grid grid-cols-2 gap-1.5">{state.seats.map((p) => chip(p, target === p, () => setTarget(p), !state.alive[p] || p === shooter))}</div>
               <div className="flex gap-2">
                 <button onClick={reset} className="flex-1 py-3 border border-indigo-600/50 text-sm">{t.cancel}</button>
                 <button disabled={shooter === null || target === null} onClick={() => { sfxExecution(); dispatch({ type: 'NOVA_SHOT', shooter: shooter!, target: target! }); reset(); }} className="flex-[2] py-3 border-2 border-red-400 bg-red-500/20 text-[10px] disabled:opacity-40" style={PIXEL}>{t.shoot}</button>
@@ -357,6 +567,17 @@ function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Actio
       )}
     </div>
   );
+}
+
+/** Chronicle entries grouped by round and stage (Night 1, Morning 1, Day 1, Night 2…). */
+function groupChronicle(entries: ChronEntry[]) {
+  const groups: { round: number; stage: ChronEntry['stage']; items: ChronEntry['item'][] }[] = [];
+  for (const e of entries) {
+    const last = groups[groups.length - 1];
+    if (last && last.round === e.round && last.stage === e.stage) last.items.push(e.item);
+    else groups.push({ round: e.round, stage: e.stage, items: [e.item] });
+  }
+  return groups;
 }
 
 // ==================== MAIN ====================
@@ -446,7 +667,15 @@ export function NightfallDeception() {
       {overlay === 'rules' && <Overlay title={t.rules} onClose={() => setOverlay(null)} closeLabel={t.close}><RulesView lang={lang} /></Overlay>}
       {overlay === 'hint' && hintPlayer !== null && (
         <Overlay title={t.roleHint} onClose={() => setOverlay(null)} closeLabel={t.close}>
-          <RoleHint role={state.roles[hintPlayer]} lang={lang} reports={state.reports[hintPlayer] ?? []} names={state.players} />
+          <RoleHint
+            role={state.roles[hintPlayer]}
+            lang={lang}
+            mode={state.mode}
+            side={sideOfPlayer(state, hintPlayer)}
+            status={[...(state.crowned === hintPlayer ? [t.crownBadge] : []), ...(state.infected[hintPlayer] ? [t.infectedBadge] : [])]}
+            reports={state.reports[hintPlayer] ?? []}
+            names={state.players}
+          />
         </Overlay>
       )}
     </div>
@@ -466,7 +695,7 @@ export function NightfallDeception() {
         </div>
         <p className="text-sm text-indigo-100/85 leading-relaxed text-left">{t.intro}</p>
         <button onClick={() => setOverlay('roles')} className="w-full py-4 border-2 border-amber-400 bg-amber-500/15 text-amber-100 text-[10px] flex items-center justify-center gap-2" style={PIXEL}><BookOpen className="w-4 h-4" />{t.viewRoles}</button>
-        <button onClick={() => setOverlay('rules')} className="w-full py-3 border border-indigo-500/50 text-indigo-100 text-[10px] flex items-center justify-center gap-2" style={PIXEL}><ScrollText className="w-4 h-4" />{t.viewRules}</button>
+        <button onClick={() => setOverlay('rules')} className={`${secondaryBtn} flex items-center justify-center gap-2`} style={PIXEL}><ScrollText className="w-4 h-4" />{t.viewRules}</button>
         <button onClick={() => dispatch({ type: 'SHOW_SETUP' })} className={primaryBtn} style={PIXEL}>{t.toSetup}</button>
       </motion.div>
     );
@@ -478,6 +707,18 @@ export function NightfallDeception() {
     const showError = error !== null && !(error === 'empty' && names.every((x) => x.trim() === ''));
     return shell(
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <h1 className="text-indigo-200 text-sm mb-3" style={PIXEL}>{t.modeTitle}</h1>
+        <div className="grid grid-cols-1 gap-2 mb-6">
+          {MODES.map((m) => (
+            <button key={m} onClick={() => dispatch({ type: 'SET_MODE', mode: m })} className={`flex items-center gap-3 border-2 p-2.5 text-left ${state.mode === m ? 'border-amber-300 bg-amber-500/10' : 'border-indigo-700/50'}`} aria-pressed={state.mode === m}>
+              <RoleIcon role={MODE_ICON[m]} size={40} className="shrink-0" />
+              <span className="min-w-0">
+                <span className={`block font-bold ${state.mode === m ? 'text-amber-200' : 'text-indigo-100'}`}>{t.modes[m].name}</span>
+                <span className="block text-xs text-indigo-200/75 leading-snug">{t.modes[m].desc}</span>
+              </span>
+            </button>
+          ))}
+        </div>
         <h1 className="text-indigo-200 text-sm mb-1 flex items-center gap-2" style={PIXEL}><Users className="w-5 h-5" />{t.setupTitle}</h1>
         <p className="text-indigo-200/70 text-sm mb-4">{t.setupHint}</p>
         <div className="space-y-2 mb-3">
@@ -489,7 +730,7 @@ export function NightfallDeception() {
           ))}
         </div>
         {names.length < NF_MAX_PLAYERS && <button onClick={() => setNames((prev) => [...prev, ''])} className="flex items-center gap-2 text-sm text-indigo-300 mb-3"><Plus className="w-4 h-4" />{t.addPlayer}</button>}
-        {names.length >= NF_MIN_PLAYERS && <p className="text-xs text-indigo-300/70 mb-3">{t.composition(names.length)}</p>}
+        {names.length >= NF_MIN_PLAYERS && <p className="text-xs text-indigo-300/70 mb-3">{t.composition(names.length, state.mode)}</p>}
         {showError && <p className="text-amber-300 text-sm mb-3">{t.errors[error]}</p>}
         <button disabled={error !== null} onClick={() => arrange(names)} className={primaryBtn} style={PIXEL}>{t.shuffleSeats}</button>
       </motion.div>
@@ -516,8 +757,9 @@ export function NightfallDeception() {
           ))}
         </ol>
         <p className="text-indigo-200/70 text-sm">{t.seatingPass}</p>
+        <p className="text-xs text-amber-200/80">{t.modes[state.mode].name} · {t.composition(state.players.length, state.mode)}</p>
         <button onClick={() => { startNightMusic(); expGiven.current = false; dispatch({ type: 'START', seed: Math.floor(Math.random() * 2 ** 31) }); }} className={primaryBtn} style={PIXEL}>{t.beginNight}</button>
-        <button onClick={() => arrange(state.players)} className="w-full py-3 border border-indigo-500/50 text-[10px] flex items-center justify-center gap-2" style={PIXEL}><RotateCcw className="w-4 h-4" />{t.reshuffle}</button>
+        <button onClick={() => arrange(state.players)} className={`${secondaryBtn} flex items-center justify-center gap-2`} style={PIXEL}><RotateCcw className="w-4 h-4" />{t.reshuffle}</button>
       </motion.div>
     );
   }
@@ -526,14 +768,14 @@ export function NightfallDeception() {
   if (state.phase === 'nightPass' || state.phase === 'dawnPass') {
     const player = pendingPlayer(state)!;
     const isNight = state.phase === 'nightPass';
-    const yesterday = isNight && state.turn === 0 && state.night > 1 ? state.events.filter((e) => e.k !== 'deaths') : [];
+    const yesterday = isNight && state.turn === 0 && state.night > 1 ? state.events : [];
     return shell(
       <motion.div key={`${state.phase}-${state.night}-${player}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center pt-4">
         <p className="text-indigo-300/70 text-xs mb-4 flex items-center gap-2" style={PIXEL}>{isNight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}{isNight ? t.night(state.night) : t.morningTitle(state.night)}</p>
         {yesterday.length > 0 && (
           <div className="w-full border border-red-500/30 bg-red-500/5 p-3 mb-6 text-sm">
             <p className="text-red-200/70 text-xs mb-1">{t.yesterday}</p>
-            {yesterday.map((e, i) => <p key={i}>{eventLine(e, state, t)}</p>)}
+            <EventLines events={yesterday} state={state} t={t} />
           </div>
         )}
         <p className="text-indigo-200 mb-2">{t.passTo}</p>
@@ -552,13 +794,21 @@ export function NightfallDeception() {
   // ==================== MORNING ANNOUNCEMENT ====================
   if (state.phase === 'morning') {
     const deaths = state.lastNightDeaths;
+    const highlights = state.morningEvents.filter((e) => e.k !== 'deaths' && e.k !== 'seats');
     return shell(
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.5 }} className="flex flex-col items-center text-center pt-6 space-y-6">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.5 }} className="flex flex-col items-center text-center pt-6 space-y-5">
         {deaths.length ? <Skull className="w-16 h-16 text-red-400" /> : <Sun className="w-16 h-16 text-amber-300" />}
         <h2 className="text-lg" style={PIXEL}>{t.morningTitle(state.night)}</h2>
         <p className={`text-xl font-bold ${deaths.length ? 'text-red-200' : 'text-amber-100'}`}>{deaths.length ? t.deathsSome(nameList(state, deaths)) : t.deathsNone}</p>
+        {highlights.length > 0 && (
+          <div className="w-full text-left border border-emerald-400/40 bg-emerald-500/5 p-3 space-y-1.5">
+            <p className="text-xs text-emerald-200/80 uppercase tracking-wider">{t.highlights}</p>
+            <EventLines events={highlights} state={state} t={t} />
+          </div>
+        )}
+        <div className="w-full"><SeatingView state={state} t={t} /></div>
         <div className="w-full"><StatusList state={state} t={t} /></div>
-        <button onClick={() => dispatch({ type: 'BEGIN_DAWN' })} className={primaryBtn} style={PIXEL}>{state.winner ? t.seeResult : t.startDawnLap(state.players[lapStart(state)])}</button>
+        <button onClick={() => dispatch({ type: 'BEGIN_DAWN' })} className={primaryBtn} style={PIXEL}>{state.winner ? t.seeResult : t.startDawnLap(state.players[state.seats[lapStart(state)]])}</button>
       </motion.div>
     );
   }
@@ -575,24 +825,36 @@ export function NightfallDeception() {
           <p className={`text-2xl font-bold ${good ? 'text-amber-200' : 'text-red-300'}`}>{good ? t.winGood : t.winEvil}</p>
           {state.winReason && <p className="text-sm mt-1 text-indigo-100/80">{t.reasons[state.winReason]}</p>}
         </div>
-        {state.events.length > 0 && <div className="space-y-1">{state.events.map((e, i) => <p key={i} className="text-sm">{eventLine(e, state, t)}</p>)}</div>}
         <h3 className="text-indigo-200 text-xs uppercase tracking-wider">{t.grimoire}</h3>
         <div className="space-y-1.5">
-          {state.players.map((name, p) => {
+          {state.seats.map((p, k) => {
             const role = state.roles[p];
             return (
               <div key={p} className={`flex items-center gap-3 border p-2 ${state.alive[p] ? 'border-indigo-600/40' : 'border-zinc-700 opacity-70'}`}>
                 <RoleIcon role={role} size={36} />
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold truncate">{name}{!state.alive[p] ? ' ☠' : ''}</p>
-                  <p className="text-xs" style={{ color: TEAM_COLOR[ROLES[role].team] }}>{ROLES[role].name}{state.startRoles[p] !== role ? ` (${ROLES[state.startRoles[p]].name} →)` : ''} · {TEAM_LABEL[ROLES[role].team][lang]}</p>
+                  <p className="font-bold truncate">{k + 1}. {state.players[p]}{!state.alive[p] ? ' ☠' : ''}{state.crowned === p ? ' 👑' : ''}</p>
+                  <p className="text-xs" style={{ color: TEAM_COLOR[ROLES[role].team] }}>
+                    {ROLES[role].name}{state.startRoles[p] !== role ? ` (${ROLES[state.startRoles[p]].name} →)` : ''}{state.infected[p] ? ` · 🧟 ${t.infectedTag}` : ''} · {TEAM_LABEL[ROLES[role].team][lang]}
+                  </p>
                 </div>
               </div>
             );
           })}
         </div>
+        <h3 className="text-indigo-200 text-xs uppercase tracking-wider pt-2">{t.chronicle}</h3>
+        <div className="space-y-3">
+          {groupChronicle(state.chronicle).map((g, i) => (
+            <section key={i} className={`border-l-2 pl-3 ${g.stage === 'night' ? 'border-indigo-500' : g.stage === 'morning' ? 'border-amber-400' : 'border-red-400'}`}>
+              <p className="text-xs font-bold text-indigo-300/80 mb-1 flex items-center gap-1.5">{g.stage === 'night' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}{t.stage[g.stage]} {g.round}</p>
+              <ul className="space-y-1 text-sm text-indigo-50/90 leading-relaxed">
+                {g.items.map((item, j) => <li key={j}>{chronicleLine(item, state.players, state.roundRoles[g.round] ?? state.startRoles, lang)}</li>)}
+              </ul>
+            </section>
+          ))}
+        </div>
         <button onClick={() => arrange(state.players)} className={`${primaryBtn} flex items-center justify-center gap-2`} style={PIXEL}><RotateCcw className="w-4 h-4" />{t.playAgain}</button>
-        <button onClick={() => { setNames(state.players); dispatch({ type: 'SHOW_SETUP' }); }} className="w-full py-3 border border-indigo-500/50 text-[10px]" style={PIXEL}>{t.newPlayers}</button>
+        <button onClick={() => { setNames(state.players); dispatch({ type: 'SHOW_SETUP' }); }} className={secondaryBtn} style={PIXEL}>{t.newPlayers}</button>
       </motion.div>
     );
   }
