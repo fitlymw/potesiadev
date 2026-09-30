@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, ScrollText, Map as MapIcon, Volume2, VolumeX, Plus, Trash2, Users, EyeOff, Moon, Sun, Skull, Crosshair, Gavel, Pause, Play, RotateCcw, HelpCircle, Ghost, Megaphone, Lock, Shuffle } from 'lucide-react';
+import { ArrowLeft, BookOpen, ScrollText, Map as MapIcon, Volume2, VolumeX, Plus, Trash2, Users, EyeOff, Moon, Sun, Skull, Crosshair, Gavel, Pause, Play, RotateCcw, HelpCircle, Ghost, Megaphone, Lock, Shuffle, Trophy } from 'lucide-react';
 import { useGamification } from '@/context/GamificationContext';
 import { pauseBgMusic, resumeBgMusic } from '@/lib/audio';
 import { RoundTable } from '@/components/games/party/RoundTable';
@@ -13,6 +13,9 @@ import {
   pendingPlayer,
   nightSpec,
   jokerOptions,
+  canSuspect,
+  pointsOf,
+  mvps,
   sideOfPlayer,
   seatOf,
   lapStart,
@@ -155,7 +158,7 @@ function promptFor(state: NfState, player: number, spec: NightSpec, t: UIText): 
     case 'infect': return t.prompt.infect(spec.count);
     case 'frenzy': return t.prompt.frenzy;
     case 'crownKill': return t.prompt.crownKill;
-    default: return t.prompt.dummy;
+    default: return canSuspect(state, player) ? t.prompt.dummy : t.prompt.dummyDark;
   }
 }
 
@@ -574,6 +577,46 @@ function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Actio
   );
 }
 
+/** Final points, highest first, with the MVP highlighted. */
+function ScoreBoard({ state, t }: { state: NfState; t: UIText }) {
+  const best = mvps(state);
+  const rows = state.players
+    .map((name, p) => ({ p, name, pts: pointsOf(state.score[p]), s: state.score[p] }))
+    .sort((a, b) => b.pts - a.pts || state.seats.indexOf(a.p) - state.seats.indexOf(b.p));
+  return (
+    <section className="space-y-2">
+      <h3 className="text-indigo-200 text-xs uppercase tracking-wider flex items-center gap-1.5"><Trophy className="w-4 h-4 text-amber-300" />{t.scoreTitle}</h3>
+      {best.length > 0 && (
+        <div className="border-2 border-amber-300 bg-amber-500/10 p-3 flex items-center gap-3">
+          <Trophy className="w-8 h-8 text-amber-300 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] text-amber-200" style={PIXEL}>{t.mvp}</p>
+            <p className="text-lg font-bold text-amber-100 break-words">{best.map((p) => state.players[p]).join(' & ')}</p>
+            <p className="text-xs text-amber-200/80">{t.pts(pointsOf(state.score[best[0]]))} · {best.map((p) => ROLES[state.roles[p]].name).join(' & ')}</p>
+          </div>
+        </div>
+      )}
+      <ol className="space-y-1">
+        {rows.map(({ p, name, pts, s }, i) => {
+          const parts = s ? [s.suspect ? t.scoreSuspect(s.suspect) : '', s.survived ? t.scoreSurvived(s.survived) : '', s.kills ? t.scoreKills(s.kills) : ''].filter(Boolean) : [];
+          return (
+            <li key={p} className={`flex items-center gap-2 border px-2 py-1.5 ${best.includes(p) ? 'border-amber-300/70 bg-amber-500/5' : 'border-indigo-600/40'}`}>
+              <span className="w-6 text-center text-xs text-indigo-300/80">{i + 1}.</span>
+              <RoleIcon role={state.roles[p]} size={28} />
+              <span className="flex-1 min-w-0">
+                <span className="block truncate font-bold text-sm">{name}{best.includes(p) ? ' 🏆' : ''}</span>
+                <span className="block text-[11px] text-indigo-300/75">{parts.length ? parts.join(' · ') : t.scoreNone}</span>
+              </span>
+              <span className="text-sm font-bold text-amber-200 shrink-0">{t.pts(pts)}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="text-[11px] text-indigo-300/60 leading-relaxed">{t.pointsHint}</p>
+    </section>
+  );
+}
+
 /** Chronicle entries grouped by round and stage (Night 1, Morning 1, Day 1, Night 2…). */
 function groupChronicle(entries: ChronEntry[]) {
   const groups: { round: number; stage: ChronEntry['stage']; items: ChronEntry['item'][] }[] = [];
@@ -847,6 +890,7 @@ export function NightfallDeception() {
           <p className={`text-2xl font-bold ${good ? 'text-amber-200' : 'text-red-300'}`}>{good ? t.winGood : t.winEvil}</p>
           {state.winReason && <p className="text-sm mt-1 text-indigo-100/80">{t.reasons[state.winReason]}</p>}
         </div>
+        <ScoreBoard state={state} t={t} />
         <h3 className="text-indigo-200 text-xs uppercase tracking-wider">{t.grimoire}</h3>
         <div className="space-y-1.5">
           {state.seats.map((p, k) => {

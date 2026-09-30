@@ -113,9 +113,17 @@ export type ReportItem =
   | { k: 'infected'; zombie: number; hive: number[] }
   | { k: 'infectResult'; target: number; ok: boolean }
   | { k: 'hiveGrew'; target: number }
+  | { k: 'jokerSight'; seen: SightEntry[] }
   | { k: 'died' }
   | { k: 'becameBoss'; role: RoleId }
   | { k: 'nothing' };
+
+/** One neighbour the Joker "sees" each night (one of the two is false). */
+export interface SightEntry {
+  player: number;
+  role: RoleId;
+  side: 'left' | 'right';
+}
 
 export interface Report {
   night: number;
@@ -179,7 +187,9 @@ export type ChronItem =
   | { k: 'shielded'; target: number }
   | { k: 'noExecution' }
   | { k: 'nova'; shooter: number; target: number; hit: boolean; real: boolean }
-  | { k: 'apex'; by: number };
+  | { k: 'apex'; by: number }
+  | { k: 'jokerSight'; by: number; seen: (SightEntry & { real: boolean })[] }
+  | { k: 'suspicion'; p: number; target: number };
 
 export interface ChronEntry {
   round: number;
@@ -194,6 +204,26 @@ export interface JokerPlan {
   targets: number[];
   /** Glitch: two players who swap seats at dawn (or empty). */
   swap: number[];
+}
+
+/** End-of-game points: Light players for correct suspicions, Dark players for surviving and killing. */
+export interface Score {
+  suspect: number;
+  survived: number;
+  kills: number;
+}
+export const POINTS = { suspect: 3, survived: 1, kill: 2 };
+const noScore = (): Score => ({ suspect: 0, survived: 0, kills: 0 });
+
+export function pointsOf(s: Score | undefined): number {
+  return s ? s.suspect * POINTS.suspect + s.survived * POINTS.survived + s.kills * POINTS.kill : 0;
+}
+
+/** Players with the most points (ties share the MVP title; nobody if all have 0). */
+export function mvps(state: NfState): number[] {
+  const pts = state.players.map((_, p) => pointsOf(state.score[p]));
+  const top = Math.max(0, ...pts);
+  return top > 0 ? pts.flatMap((v, p) => (v === top ? [p] : [])) : [];
 }
 
 export type WinReason = 'nbExecuted' | 'nbShot' | 'nbGone' | 'jokerGone' | 'hiveGone' | 'parity' | 'apex';
@@ -226,8 +256,8 @@ export interface NfState {
   reports: Record<number, Report[]>;
   /** Poisoned player for the current night and the following day. */
   poisoned: number | null;
-  /** Gouge victims and the night they die. */
-  gouged: { target: number; due: number }[];
+  /** Gouge victims, the night they die and who gouged them. */
+  gouged: { target: number; due: number; by: number }[];
   novaUsed: boolean;
   fangShield: boolean;
   loomUsed: boolean;
@@ -251,6 +281,10 @@ export interface NfState {
   /** Public events of the current day. */
   events: PublicEvent[];
   chronicle: ChronEntry[];
+  /** Points per player, shown with the MVP at the end. */
+  score: Record<number, Score>;
+  /** Tonight's "least trusted" picks by Light players with no action. */
+  suspicions: Record<number, number>;
   winner: Side | null;
   winReason: WinReason | null;
 }
@@ -294,6 +328,8 @@ export const initialState = (lang: Lang = 'id', mode: Mode = 'standard'): NfStat
   nominations: [],
   events: [],
   chronicle: [],
+  score: {},
+  suspicions: {},
   winner: null,
   winReason: null,
 });
@@ -429,6 +465,11 @@ export interface NightSpec {
 /** The Zombie horde acts on nights 1, 1 + infectEvery, … (infecting, or killing in a Frenzy). */
 export function hordeNight(state: NfState): boolean {
   return (state.night - 1) % ZOMBIE_RULES.infectEvery === 0;
+}
+
+/** A living Light player with no action tonight picks who they trust least — a correct pick earns points. */
+export function canSuspect(state: NfState, p: number): boolean {
+  return state.alive[p] && sideOfPlayer(state, p) === 'good' && nightSpec(state, p).kind === 'dummy';
 }
 
 /** What the Joker may do tonight (it never kills). */
@@ -578,6 +619,14 @@ export function resolveNight(state: NfState): NfState {
   const darkKills = new Set<number>();
   const visited = new Set<number>();
   const newlyInfected: number[] = [];
+  const score: Record<number, Score> = Object.fromEntries(everyone.map((p) => [p, { ...(state.score[p] ?? noScore()) }]));
+  const jokerIdx = everyone.find((p) => roles[p] === 'joker');
+  const zombieIdx = everyone.find((p) => roles[p] === 'zombie');
+  /** Kill points: the crown holder's kills go to the Joker, the horde's to the Zombie. */
+  const creditKill = (by: number | undefined, victim: number) => {
+    const to = state.mode === 'joker' && by === state.crowned ? jokerIdx : by;
+    if (to !== undefined && to !== victim) score[to].kills++;
+  };
   const pick = <T,>(xs: T[]): T => xs[Math.floor(rng() * xs.length)];
   const report = (p: number, item: ReportItem) => {
     reports = addReport(reports, p, night, item);
@@ -635,8 +684,8 @@ export function resolveNight(state: NfState): NfState {
     if (by === 'aegis' && aegis !== undefined) report(aegis, { k: 'protectSaved', target: t });
     if (by === 'tide' && tide !== undefined) report(tide, { k: 'tideSaved', target: t });
   };
-  /** A Dark attack on t. */
-  const attack = (t: number): AttackResult => {
+  /** A night attack on t by `by` (who gets the kill points). */
+  const attack = (t: number, by: number | undefined): AttackResult => {
     visited.add(t);
     if (!alive[t]) return 'dead';
     const g = guard(t);
@@ -645,6 +694,7 @@ export function resolveNight(state: NfState): NfState {
       return g;
     }
     die(t, true);
+    creditKill(by, t);
     return 'killed';
   };
 
@@ -660,19 +710,19 @@ export function resolveNight(state: NfState): NfState {
           visited.add(t);
           const g = guard(t);
           if (g) announceSave(t, g, 'attack');
-          else if (alive[t] && !dying(t)) gouged = [...gouged, { target: t, due: night + 1 }];
+          else if (alive[t] && !dying(t)) gouged = [...gouged, { target: t, due: night + 1, by: boss }];
           chron.push({ k: 'gouge', by: boss, target: t, result: g ?? 'marked' });
         }
       } else if (r === 'bane') {
         const [first, second] = targets;
-        const res = attack(first);
+        const res = attack(first, boss);
         chron.push({ k: 'attack', by: boss, target: first, result: res });
         if (second !== undefined) {
-          if (state.voidDouble) chron.push({ k: 'attack', by: boss, target: second, result: attack(second) });
+          if (state.voidDouble) chron.push({ k: 'attack', by: boss, target: second, result: attack(second, boss) });
           else if (res === 'killed' && ROLES[roles[first]].team === 'cursed') {
             report(boss, { k: 'baneReset', target: first });
             chron.push({ k: 'baneReset', by: boss, first });
-            chron.push({ k: 'attack', by: boss, target: second, result: attack(second) });
+            chron.push({ k: 'attack', by: boss, target: second, result: attack(second, boss) });
           }
         }
       } else {
@@ -687,7 +737,7 @@ export function resolveNight(state: NfState): NfState {
               report(heir, { k: 'becameBoss', role: 'abyss' });
             }
             chron.push({ k: 'titlePassed', from: boss, to: heir });
-          } else chron.push({ k: 'attack', by: boss, target: t, result: attack(t) });
+          } else chron.push({ k: 'attack', by: boss, target: t, result: attack(t, boss) });
         }
       }
     }
@@ -733,7 +783,7 @@ export function resolveNight(state: NfState): NfState {
           [seatsNow[i], seatsNow[j]] = [seatsNow[j], seatsNow[i]];
         }
         const target = seatsNow[seat];
-        chron.push({ k: 'seatAttack', by: holder, seat, target, result: attack(target) });
+        chron.push({ k: 'seatAttack', by: holder, seat, target, result: attack(target, holder) });
       }
     }
   }
@@ -764,19 +814,27 @@ export function resolveNight(state: NfState): NfState {
       if (tally.size) {
         const top = Math.max(...tally.values());
         const t = pick([...tally.entries()].filter(([, v]) => v === top).map(([k]) => k));
-        chron.push({ k: 'frenzy', target: t, result: attack(t) });
+        chron.push({ k: 'frenzy', target: t, result: attack(t, zombieIdx) });
       }
     }
   }
 
   // 5. Delayed deaths
-  for (const g of gouged) if (g.due === night && die(g.target, true)) chron.push({ k: 'gougeDeath', target: g.target });
+  for (const g of gouged) {
+    if (g.due === night && die(g.target, true)) {
+      creditKill(g.by, g.target);
+      chron.push({ k: 'gougeDeath', target: g.target });
+    }
+  }
   gouged = gouged.filter((g) => g.due > night && alive[g.target]);
   if (state.echoDoom) {
     const echo = everyone.find((p) => alive[p] && roles[p] === 'echo');
     if (echo !== undefined && die(echo, false)) chron.push({ k: 'echoDoom', target: echo });
   }
-  if (state.viperVictim !== null && die(state.viperVictim, false)) chron.push({ k: 'viperDeath', target: state.viperVictim });
+  if (state.viperVictim !== null && die(state.viperVictim, false)) {
+    creditKill(everyone.find((p) => roles[p] === 'viper'), state.viperVictim);
+    chron.push({ k: 'viperDeath', target: state.viperVictim });
+  }
 
   // 6. Pyre takes someone along when the Dark side kills it
   const pyre = everyone.find((p) => kindOf(p) === 'revenge');
@@ -926,6 +984,35 @@ export function resolveNight(state: NfState): NfState {
     for (const h of hive) if (!newlyInfected.includes(h)) for (const t of newlyInfected) report(h, { k: 'hiveGrew', target: t });
   }
 
+  // Joker passive: the roles of both living neighbours — but one of the two is false
+  if (jokerIdx !== undefined && alive[jokerIdx]) {
+    const [left, right] = livingNeighbours(after, jokerIdx);
+    const near = [
+      ...(left !== null ? [{ player: left, side: 'left' as const }] : []),
+      ...(right !== null ? [{ player: right, side: 'right' as const }] : []),
+    ];
+    if (near.length) {
+      // With two neighbours exactly one lies; with a single neighbour it is a coin flip
+      const liar = near.length === 2 ? Math.floor(rng() * 2) : rng() < 0.5 ? 0 : -1;
+      const goodPool = [...rolesOfTeam('luminary').filter((r) => !NIGHT_ONE_ROLES.includes(r)), ...rolesOfTeam('cursed')];
+      const seen = near.map((x, i) => {
+        const real = i !== liar;
+        return { ...x, role: real ? roles[x.player] : pick(goodPool.filter((r) => r !== roles[x.player])), real };
+      });
+      report(jokerIdx, { k: 'jokerSight', seen: seen.map(({ player, role, side }) => ({ player, role, side })) });
+      chron.push({ k: 'jokerSight', by: jokerIdx, seen });
+    }
+  }
+
+  // Points: correct "least trusted" picks by Light players, and one point per night for every surviving Dark player
+  for (const [who, target] of Object.entries(state.suspicions)) {
+    if (sideOfPlayer(state, target) === 'evil') {
+      score[Number(who)].suspect++;
+      chron.push({ k: 'suspicion', p: Number(who), target });
+    }
+  }
+  for (const p of everyone) if (alive[p] && sideOfPlayer(state, p) === 'evil') score[p].survived++;
+
   for (const d of new Set(deaths)) if (!alive[d]) report(d, { k: 'died' });
   for (const p of everyone) if (!(reports[p] ?? []).some((r) => r.night === night)) report(p, { k: 'nothing' });
 
@@ -951,6 +1038,8 @@ export function resolveNight(state: NfState): NfState {
     voidDouble: false,
     executedToday: null,
     jokerPlan: null,
+    score,
+    suspicions: {},
     phase: 'nightEnd',
   };
   resolved = { ...dropCrown(resolved), chronicle: [...state.chronicle, ...chron.map((item) => ({ round: night, stage: 'night' as const, item }))] };
@@ -1042,6 +1131,7 @@ export function reducer(state: NfState, action: Action): NfState {
         alive: Array(n).fill(true),
         ghostVote: Array(n).fill(false),
         infected: Array(n).fill(false),
+        score: Object.fromEntries(range(n).map((p) => [p, noScore()])),
         night: 1,
       };
     }
@@ -1053,13 +1143,15 @@ export function reducer(state: NfState, action: Action): NfState {
       const p = pendingPlayer(state);
       if (state.phase !== 'night' || p === null) return state;
       const spec = nightSpec(state, p);
-      let { choices, jokerPlan } = state;
+      let { choices, jokerPlan, suspicions } = state;
+      const [pick] = action.targets;
+      if (spec.kind === 'dummy' && canSuspect(state, p) && action.targets.length === 1 && pick !== p && state.alive[pick]) suspicions = { ...suspicions, [p]: pick };
       if (spec.kind === 'joker') {
         const plan: JokerPlan = { mode: action.joker?.mode ?? 'keep', targets: action.targets, swap: action.joker?.swap ?? [] };
         jokerPlan = validJokerPlan(state, p, plan) ? plan : { mode: 'keep', targets: [], swap: [] };
       } else if (spec.kind !== 'dummy' && validTargets(state, p, action.targets)) choices = { ...choices, [p]: action.targets };
       const turn = state.turn + 1;
-      const next = { ...state, choices, jokerPlan, turn };
+      const next = { ...state, choices, jokerPlan, suspicions, turn };
       return turn >= n ? resolveNight(next) : { ...next, phase: 'nightPass' };
     }
     case 'SHOW_MORNING':
@@ -1160,6 +1252,7 @@ export function reducer(state: NfState, action: Action): NfState {
         turn: 0,
         choices: {},
         jokerPlan: null,
+        suspicions: {},
         poisoned: null,
         nominations: [],
         dayStage: 'discussion',
