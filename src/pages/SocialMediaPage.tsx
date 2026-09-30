@@ -76,7 +76,7 @@ export function SocialMediaPage() {
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: `url(${getAssetUrl('/images/social_media.gif')})`,
+          backgroundImage: `url(${getAssetUrl('/images/freelance.webp')})`,
         }}
       >
         <div className="absolute inset-0 bg-black/70" />

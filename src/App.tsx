@@ -1,26 +1,9 @@
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, lazy, Suspense, type ReactNode } from 'react';
 import { CartProvider } from '@/hooks/useCart';
 import { Layout } from '@/components/layout/Layout';
 import { LandingPage } from '@/pages/LandingPage';
-import { MenuPage } from '@/pages/MenuPage';
-import { AboutMePage } from '@/pages/AboutMePage';
-import { MyProjectPage } from '@/pages/MyProjectPage';
-import { MinimalistPage } from '@/pages/MinimalistPage';
-import { ModernPage } from '@/pages/ModernPage';
-import { ThreeDPage } from '@/pages/ThreeDPage';
-import { AIDataLabPage } from '@/pages/AIDataLabPage';
-import { SenseAnalyticsPage } from '@/pages/SenseAnalyticsPage';
-import { SocialMediaPage } from '@/pages/SocialMediaPage';
-import { AcademicJournalPage } from '@/pages/AcademicJournalPage';
-import { FreelancePage } from '@/pages/FreelancePage';
-import { GamesPage } from '@/pages/GamesPage';
-import { OracleTavernPage } from '@/pages/OracleTavernPage';
-import { OracleResultPage } from '@/pages/OracleResultPage';
-import { RetroAICameraPage } from '@/pages/RetroAICameraPage';
-import { PersonaCorePage } from '@/pages/PersonaCorePage';
-import { ProtocolSlicePage } from '@/pages/ProtocolSlicePage';
 import { AudioProvider } from '@/components/common/AudioProvider';
 import { GamificationProvider } from '@/context/GamificationContext';
 import { LoadingScreen } from '@/components/common/LoadingScreen';
@@ -29,11 +12,48 @@ import { LanguageGateway } from '@/components/LanguageGateway';
 
 import { initAudio } from '@/lib/audio';
 
+// Halaman selain landing dipecah per-chunk agar bundle awal kecil
+const MenuPage = lazy(() => import('@/pages/MenuPage').then((m) => ({ default: m.MenuPage })));
+const AboutMePage = lazy(() => import('@/pages/AboutMePage').then((m) => ({ default: m.AboutMePage })));
+const MyProjectPage = lazy(() => import('@/pages/MyProjectPage').then((m) => ({ default: m.MyProjectPage })));
+const MinimalistPage = lazy(() => import('@/pages/MinimalistPage').then((m) => ({ default: m.MinimalistPage })));
+const ModernPage = lazy(() => import('@/pages/ModernPage').then((m) => ({ default: m.ModernPage })));
+const ThreeDPage = lazy(() => import('@/pages/ThreeDPage').then((m) => ({ default: m.ThreeDPage })));
+const AIDataLabPage = lazy(() => import('@/pages/AIDataLabPage').then((m) => ({ default: m.AIDataLabPage })));
+const SenseAnalyticsPage = lazy(() => import('@/pages/SenseAnalyticsPage').then((m) => ({ default: m.SenseAnalyticsPage })));
+const SocialMediaPage = lazy(() => import('@/pages/SocialMediaPage').then((m) => ({ default: m.SocialMediaPage })));
+const AcademicJournalPage = lazy(() => import('@/pages/AcademicJournalPage').then((m) => ({ default: m.AcademicJournalPage })));
+const FreelancePage = lazy(() => import('@/pages/FreelancePage').then((m) => ({ default: m.FreelancePage })));
+const GamesPage = lazy(() => import('@/pages/GamesPage').then((m) => ({ default: m.GamesPage })));
+const OracleTavernPage = lazy(() => import('@/pages/OracleTavernPage').then((m) => ({ default: m.OracleTavernPage })));
+const OracleResultPage = lazy(() => import('@/pages/OracleResultPage').then((m) => ({ default: m.OracleResultPage })));
+const RetroAICameraPage = lazy(() => import('@/pages/RetroAICameraPage').then((m) => ({ default: m.RetroAICameraPage })));
+const PersonaCorePage = lazy(() => import('@/pages/PersonaCorePage').then((m) => ({ default: m.PersonaCorePage })));
+const ProtocolSlicePage = lazy(() => import('@/pages/ProtocolSlicePage').then((m) => ({ default: m.ProtocolSlicePage })));
+
 export const getAssetUrl = (path: string) => {
   const base = '/potesiadev';
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${base}${cleanPath}`;
 };
+
+/** Halaman tanpa nav/footer (full-screen) */
+function Fullscreen({ children }: { children: ReactNode }) {
+  return (
+    <PageRouteWrapper>
+      <Layout showNav={false} showFooter={false}>{children}</Layout>
+    </PageRouteWrapper>
+  );
+}
+
+/** Halaman dengan nav & footer */
+function WithNav({ children }: { children: ReactNode }) {
+  return (
+    <PageRouteWrapper>
+      <Layout>{children}</Layout>
+    </PageRouteWrapper>
+  );
+}
 
 function App() {
   const [loadingDone, setLoadingDone] = useState(false);
@@ -43,6 +63,12 @@ function App() {
     setLoadingDone(true);
     initAudio();
   }, []);
+
+  const landing = (
+    <Fullscreen>
+      <LandingPage setShowLanguageGateway={setShowLanguageGateway} />
+    </Fullscreen>
+  );
 
   return (
     <CartProvider>
@@ -55,160 +81,38 @@ function App() {
                 <LanguageGateway onComplete={() => setShowLanguageGateway(false)} />
               )}
 
-              {/* 2. LOADING SCREEN */}
+              {/* 2. LOADING SCREEN (overlay; halaman di bawahnya sudah mulai memuat) */}
               {!loadingDone && (
                 <LoadingScreen onComplete={handleLoadingComplete} />
               )}
-
-              {/* 3. MAIN APPLICATION */}
-              {!loadingDone ? (
-                <Routes>
-                  <Route path="*" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <LandingPage setShowLanguageGateway={setShowLanguageGateway} />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-                </Routes>
-              ) : (
-                <Routes>
-                  <Route path="/" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <LandingPage setShowLanguageGateway={setShowLanguageGateway} />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/menu" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <MenuPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/about-me" element={
-                    <PageRouteWrapper>
-                      <Layout><AboutMePage /></Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/my-project" element={
-                    <PageRouteWrapper>
-                      <Layout><MyProjectPage /></Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/my-project/minimalist" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <MinimalistPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/my-project/modern" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <ModernPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/my-project/3d-design" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <ThreeDPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/my-project/ai-data-lab" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <AIDataLabPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/my-project/sense-analytics" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <SenseAnalyticsPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/social-media" element={
-                    <PageRouteWrapper>
-                      <Layout><SocialMediaPage /></Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/academic-journal" element={
-                    <PageRouteWrapper>
-                      <Layout><AcademicJournalPage /></Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/freelance" element={
-                    <PageRouteWrapper>
-                      <Layout><FreelancePage /></Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/games" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <GamesPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/games/oracle-tavern" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <OracleTavernPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/games/oracle-tavern/result" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <OracleResultPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/games/retro-ai-camera" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <RetroAICameraPage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/games/persona-core" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <PersonaCorePage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-
-                  <Route path="/games/protocol-slice" element={
-                    <PageRouteWrapper>
-                      <Layout showNav={false} showFooter={false}>
-                        <ProtocolSlicePage />
-                      </Layout>
-                    </PageRouteWrapper>
-                  } />
-                </Routes>
-              )}
             </AnimatePresence>
+
+            {/* 3. MAIN APPLICATION — satu pohon Routes yang sama sebelum & sesudah
+                loading, jadi halaman di bawah loading screen (poster & video landing)
+                sudah mulai dimuat dan tidak di-mount ulang saat PRESS START. */}
+            <Suspense fallback={<div className="fixed inset-0 bg-hound-black" />}>
+              <Routes>
+                <Route path="/" element={landing} />
+                <Route path="/menu" element={<Fullscreen><MenuPage /></Fullscreen>} />
+                <Route path="/about-me" element={<WithNav><AboutMePage /></WithNav>} />
+                <Route path="/my-project" element={<WithNav><MyProjectPage /></WithNav>} />
+                <Route path="/my-project/minimalist" element={<Fullscreen><MinimalistPage /></Fullscreen>} />
+                <Route path="/my-project/modern" element={<Fullscreen><ModernPage /></Fullscreen>} />
+                <Route path="/my-project/3d-design" element={<Fullscreen><ThreeDPage /></Fullscreen>} />
+                <Route path="/my-project/ai-data-lab" element={<Fullscreen><AIDataLabPage /></Fullscreen>} />
+                <Route path="/my-project/sense-analytics" element={<Fullscreen><SenseAnalyticsPage /></Fullscreen>} />
+                <Route path="/social-media" element={<WithNav><SocialMediaPage /></WithNav>} />
+                <Route path="/academic-journal" element={<WithNav><AcademicJournalPage /></WithNav>} />
+                <Route path="/freelance" element={<WithNav><FreelancePage /></WithNav>} />
+                <Route path="/games" element={<Fullscreen><GamesPage /></Fullscreen>} />
+                <Route path="/games/oracle-tavern" element={<Fullscreen><OracleTavernPage /></Fullscreen>} />
+                <Route path="/games/oracle-tavern/result" element={<Fullscreen><OracleResultPage /></Fullscreen>} />
+                <Route path="/games/retro-ai-camera" element={<Fullscreen><RetroAICameraPage /></Fullscreen>} />
+                <Route path="/games/persona-core" element={<Fullscreen><PersonaCorePage /></Fullscreen>} />
+                <Route path="/games/protocol-slice" element={<Fullscreen><ProtocolSlicePage /></Fullscreen>} />
+                <Route path="*" element={landing} />
+              </Routes>
+            </Suspense>
           </AudioProvider>
         </Router>
       </GamificationProvider>
@@ -217,4 +121,3 @@ function App() {
 }
 
 export default App;
-

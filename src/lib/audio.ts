@@ -16,8 +16,9 @@ export function initAudio() {
   isInitialized = true;
 
   try {
-    // 1. Musik Latar: Sesuai dengan nama bg_song.wav
-    bgMusic = new Audio(getAssetUrl('/bg song/bg_song.wav'));
+    // 1. Musik Latar: MP3 128 kbps (~4 MB) yang di-stream, bukan WAV 52 MB
+    bgMusic = new Audio(getAssetUrl('/bg song/bg_song.mp3'));
+    bgMusic.preload = 'auto';
     bgMusic.loop = true;
     bgMusic.volume = 0.4;
 

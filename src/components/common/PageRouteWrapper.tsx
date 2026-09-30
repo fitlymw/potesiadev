@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { preloadPageAssets, type PreloadProgress } from '@/lib/preloader';
+import { isPageReady, preloadPageAssets, type PreloadProgress } from '@/lib/preloader';
 
 const LOADING_MESSAGES = [
   'Warping to new sector...',
@@ -22,7 +22,8 @@ interface PageRouteWrapperProps {
 
 export function PageRouteWrapper({ children }: PageRouteWrapperProps) {
   const location = useLocation();
-  const [isReady, setIsReady] = useState(false);
+  // Halaman yang asset-nya sudah pernah dimuat langsung tampil tanpa loader
+  const [isReady, setIsReady] = useState(() => isPageReady(location.pathname));
   const [progress, setProgress] = useState<PreloadProgress>({
     loaded: 0,
     total: 1,
@@ -34,31 +35,20 @@ export function PageRouteWrapper({ children }: PageRouteWrapperProps) {
 
   // Preload assets on mount and pathname change
   useEffect(() => {
+    if (isPageReady(location.pathname)) {
+      setIsReady(true);
+      return;
+    }
+
     let cancelled = false;
     setIsReady(false);
-    setProgress({
-      loaded: 0,
-      total: 1,
-      percentage: 0,
-      currentAsset: '',
-      phase: 'page',
-    });
 
+    // preloadPageAssets tidak pernah reject dan dibatasi waktu tunggu maksimum
     preloadPageAssets(location.pathname, (p) => {
       if (!cancelled) setProgress(p);
-    })
-      .then(() => {
-        if (!cancelled) {
-          // Small delay so 100% is briefly visible
-          setTimeout(() => {
-            if (!cancelled) setIsReady(true);
-          }, 300);
-        }
-      })
-      .catch(() => {
-        // Fail-safe: always render children
-        if (!cancelled) setIsReady(true);
-      });
+    }).then(() => {
+      if (!cancelled) setIsReady(true);
+    });
 
     return () => {
       cancelled = true;

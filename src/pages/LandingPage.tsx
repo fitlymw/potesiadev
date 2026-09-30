@@ -28,6 +28,7 @@ export function LandingPage({ setShowLanguageGateway }: LandingPageProps) {
   const isMobile = useIsMobile();
 
   const [displayText, setDisplayText] = useState('');
+  const [videoReady, setVideoReady] = useState(false);
   const fullText = isMobile ? t('landing.tap_to_start') : t('landing.press_start');
   const [showCursor, setShowCursor] = useState(true);
 
@@ -68,15 +69,22 @@ export function LandingPage({ setShowLanguageGateway }: LandingPageProps) {
 
   return (
     <div className="relative min-h-screen overflow-hidden crt-flicker">
-      {/* Background Video */}
+      {/* Background: poster tampil instan, video di-stream lalu fade-in saat siap diputar */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${getAssetUrl('/images/landing-poster.jpg')})` }}
+      />
       <video
         autoPlay
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover"
+        preload="auto"
+        poster={getAssetUrl('/images/landing-poster.jpg')}
+        onCanPlay={() => setVideoReady(true)}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
       >
-        <source src={getAssetUrl('/images/Wisuda_old_retro.mp4')} type="video/mp4" />
+        <source src={getAssetUrl('/images/landing.mp4')} type="video/mp4" />
       </video>
 
       {/* Overlays */}
