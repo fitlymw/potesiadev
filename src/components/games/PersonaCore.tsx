@@ -5,6 +5,7 @@ import { useAudio } from '@/hooks/useAudio';
 import { useGamification } from '@/context/GamificationContext';
 import { assetUrl } from '@/lib/preloader';
 import { BFI_ITEMS, BFI_STEM, LIKERT_LABELS } from '@/data/bfi44';
+import { deriveInsights, type Insight, type InsightBasis } from '@/lib/personality/insights';
 import {
   scoreBfi,
   matchArchetypes,
@@ -14,7 +15,7 @@ import {
   type Trait,
   type TraitLevel,
 } from '@/lib/personality/bfi';
-import { ArrowLeft, Download, Activity, Target, Users, Briefcase, Heart, Cpu, Zap, Shield, Eye, Brain, Hexagon, Terminal, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Activity, Target, Users, Briefcase, Heart, Cpu, Zap, Shield, Eye, Brain, Hexagon, Terminal, Loader2, ThumbsUp, AlertTriangle, Scale } from 'lucide-react';
 
 // ==================== CONFIGURATION ====================
 // Isi VITE_N8N_WEBHOOK_URL di file .env untuk mengaktifkan rekomendasi karier.
@@ -32,6 +33,7 @@ interface GameState {
 interface PersonaResult {
   profile: BfiProfile;
   matches: ArchetypeMatch[];
+  insights: Insight[];
 }
 
 interface AcademicRecord {
@@ -60,25 +62,39 @@ const UI = {
     rule1: '44 statements • 5-point scale • ±5 minutes',
     rule2: 'Five dimensions: Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism',
     rule3: 'Answer honestly — there are no right or wrong answers',
-    rule4: 'Archetype = closest match to your trait profile',
+    rule4: 'Your personality type = the closest match to your trait profile',
     back: 'PREVIOUS',
-    complete: 'SYSTEM ANALYSIS COMPLETE',
-    identified: 'ARCHETYPE IDENTIFIED',
+    complete: 'PERSONALITY TEST RESULT',
+    identified: 'YOUR PERSONALITY TYPE',
     match: 'match',
-    secondary: 'Secondary tendencies',
-    holistic: 'Holistic Analysis',
+    secondary: 'Also similar to',
+    keyTraits: 'Key traits',
+    holistic: 'Overview',
+    insights: 'Positive & Negative Traits',
+    insightsSub: 'Each strength usually comes with a downside to watch out for.',
+    positive: 'Positive side',
+    negative: 'Watch out for',
+    basis: 'Based on',
+    yourAnswer: 'your answer',
     traits: 'Trait Scores (0–100)',
     distribution: 'Trait Distribution',
     avgMarker: '│ = reference average',
-    social: 'Social Interaction',
-    workplace: 'Workplace Behavior',
-    driver: 'Core Driver',
+    social: 'In Relationships',
+    workplace: 'At Work / School',
+    driver: 'Main Motivation',
     export: 'SYSTEM EXPORT',
     reboot: 'REBOOT',
     disclaimer:
-      'Scores are relative to approximate adult reference values. Archetypes are a heuristic summary of your trait profile, not a clinical diagnosis.',
+      'Scores are compared with approximate adult reference values. This result describes tendencies, not a clinical diagnosis.',
     levels: { low: 'LOW', moderate: 'MODERATE', high: 'HIGH' } as Record<TraitLevel, string>,
     traitNames: { O: 'OPENNESS', C: 'CONSCIENTIOUSNESS', E: 'EXTRAVERSION', A: 'AGREEABLENESS', N: 'EMOTIONAL STABILITY' } as Record<Trait, string>,
+    traitDesc: {
+      O: 'Openness to new ideas and experiences',
+      C: 'Organization, discipline, and responsibility',
+      E: 'Energy you get from social interaction',
+      A: 'Friendliness and cooperation with others',
+      N: 'Staying calm under pressure',
+    } as Record<Trait, string>,
     career: 'Career Recommendation (AI)',
     degree: 'DEGREE / MAJOR',
     subjects: 'TOP 3 CORE SUBJECTS (SCORE 0–100)',
@@ -93,27 +109,41 @@ const UI = {
     protocol: 'PROTOKOL KEPRIBADIAN BIG FIVE INVENTORY (BFI-44)',
     rules: 'Aturan Kalibrasi Asesmen',
     rule1: '44 pernyataan • skala 5 poin • ±5 menit',
-    rule2: 'Lima dimensi: Keterbukaan, Kehati-hatian, Ekstraversi, Keramahan, Neurotisisme',
+    rule2: 'Lima dimensi: Keterbukaan, Kedisiplinan, Ekstraversi, Keramahan, Stabilitas Emosi',
     rule3: 'Jawab dengan jujur — tidak ada jawaban benar atau salah',
-    rule4: 'Arketipe = kecocokan terdekat dengan profil sifatmu',
+    rule4: 'Tipe kepribadian = kecocokan terdekat dengan profil sifatmu',
     back: 'SEBELUMNYA',
-    complete: 'ANALISIS SISTEM SELESAI',
-    identified: 'ARKETIPE TERIDENTIFIKASI',
+    complete: 'HASIL TES KEPRIBADIAN',
+    identified: 'TIPE KEPRIBADIANMU',
     match: 'cocok',
-    secondary: 'Kecenderungan sekunder',
-    holistic: 'Analisis Holistik',
+    secondary: 'Juga mirip dengan',
+    keyTraits: 'Ciri utama',
+    holistic: 'Gambaran Umum',
+    insights: 'Sifat Positif & Negatif',
+    insightsSub: 'Setiap kelebihan biasanya punya sisi lain yang perlu kamu waspadai.',
+    positive: 'Sisi positif',
+    negative: 'Perlu diwaspadai',
+    basis: 'Berdasarkan',
+    yourAnswer: 'jawabanmu',
     traits: 'Skor Sifat (0–100)',
     distribution: 'Distribusi Sifat',
     avgMarker: '│ = rata-rata referensi',
-    social: 'Interaksi Sosial',
-    workplace: 'Perilaku Tempat Kerja',
-    driver: 'Penggerak Inti',
+    social: 'Dalam Hubungan Sosial',
+    workplace: 'Di Tempat Kerja / Kuliah',
+    driver: 'Motivasi Utama',
     export: 'EKSPOR SISTEM',
     reboot: 'ULANGI',
     disclaimer:
-      'Skor dibandingkan dengan nilai referensi orang dewasa (perkiraan). Arketipe adalah ringkasan heuristik dari profil sifatmu, bukan diagnosis klinis.',
+      'Skor dibandingkan dengan nilai referensi orang dewasa (perkiraan). Hasil ini menggambarkan kecenderungan, bukan diagnosis klinis.',
     levels: { low: 'RENDAH', moderate: 'SEDANG', high: 'TINGGI' } as Record<TraitLevel, string>,
-    traitNames: { O: 'KETERBUKAAN', C: 'KEHATI-HATIAN', E: 'EKSTRAVERSI', A: 'KERAMAHAN', N: 'STABILITAS EMOSI' } as Record<Trait, string>,
+    traitNames: { O: 'KETERBUKAAN', C: 'KEDISIPLINAN', E: 'EKSTRAVERSI', A: 'KERAMAHAN', N: 'STABILITAS EMOSI' } as Record<Trait, string>,
+    traitDesc: {
+      O: 'Keterbukaan pada ide dan pengalaman baru',
+      C: 'Keteraturan, disiplin, dan tanggung jawab',
+      E: 'Energi yang kamu dapat dari interaksi sosial',
+      A: 'Keramahan dan kemampuan bekerja sama',
+      N: 'Ketenangan saat menghadapi tekanan',
+    } as Record<Trait, string>,
     career: 'Rekomendasi Karier (AI)',
     degree: 'JURUSAN / PROGRAM STUDI',
     subjects: '3 MATA KULIAH UTAMA (NILAI 0–100)',
@@ -178,13 +208,14 @@ function Typewriter({ text, delay = 0 }: { text: string; delay?: number }) {
 }
 
 // ==================== GRADIENT BAR ====================
-function GradientBar({ label, value, level, refValue, gradient, icon }: { label: string; value: number; level: string; refValue: number; gradient: string; icon: React.ReactNode }) {
+function GradientBar({ label, description, value, level, refValue, gradient, icon }: { label: string; description: string; value: number; level: string; refValue: number; gradient: string; icon: React.ReactNode }) {
   return (
     <div className="mb-4">
       <div className="flex justify-between items-center mb-1 gap-2">
         <span className="flex items-center gap-2 text-xs uppercase tracking-wider font-mono"><span className="text-cyan-400">{icon}</span><span className="text-cyan-400">{label}</span></span>
         <span className="text-xs font-mono text-cyan-400/70 whitespace-nowrap">{Math.round(value)} · {level}</span>
       </div>
+      <p className="text-[11px] text-cyan-300/50 mb-1">{description}</p>
       <div className="relative h-3 bg-black/50 border border-cyan-500/30 overflow-hidden">
         <motion.div initial={{ width: 0 }} animate={{ width: `${value}%` }} transition={{ duration: 1, ease: 'easeOut' }} className={`h-full ${gradient}`} />
         <div className="absolute top-0 bottom-0 w-px bg-white/70" style={{ left: `${refValue}%` }} />
@@ -311,6 +342,56 @@ function CareerSection({ lang, result }: { lang: Lang; result: PersonaResult }) 
   );
 }
 
+/** Level word for an archetype target, phrased the way the UI shows the trait (N as stability). */
+function targetLevel(trait: Trait, target: -1 | 0 | 1): TraitLevel {
+  const level: TraitLevel = target > 0 ? 'high' : target < 0 ? 'low' : 'moderate';
+  if (trait !== 'N' || level === 'moderate') return level;
+  return level === 'high' ? 'low' : 'high';
+}
+
+// ==================== POSITIVE & NEGATIVE TRAITS ====================
+function InsightsSection({ lang, insights, profile, answers }: { lang: Lang; insights: Insight[]; profile: BfiProfile; answers: number[] }) {
+  const t = UI[lang];
+  const describeBasis = (basis: InsightBasis) => {
+    if (basis.kind === 'trait') {
+      const shown = displayTrait(profile, basis.trait);
+      return `${t.traitNames[basis.trait]} ${Math.round(shown.value)} (${t.levels[shown.level]})`;
+    }
+    const index = BFI_ITEMS.findIndex((item) => item.id === basis.itemId);
+    return `"${BFI_ITEMS[index].text[lang]}" → ${t.yourAnswer}: ${LIKERT_LABELS[lang][answers[index] - 1]}`;
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="border border-cyan-500/30 bg-cyan-950/10 p-6">
+      <div className="flex items-center gap-2 text-cyan-400 text-xs mb-1 uppercase tracking-wider"><Scale className="w-4 h-4" /><span>{t.insights}</span></div>
+      <p className="text-cyan-300/50 text-xs mb-4">{t.insightsSub}</p>
+      <div className="space-y-3">
+        {insights.map((insight) => (
+          <div key={insight.tag} className="border border-cyan-500/20 bg-black/30 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex items-start gap-2">
+                <ThumbsUp className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-emerald-400/80 text-[11px] uppercase tracking-wider">{t.positive}</p>
+                  <p className="text-cyan-50/90 text-sm leading-relaxed">{insight.positive[lang]}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-amber-400/80 text-[11px] uppercase tracking-wider">{t.negative}</p>
+                  <p className="text-cyan-50/90 text-sm leading-relaxed">{insight.negative[lang]}</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-cyan-400/40 text-[11px] mt-3 font-mono">{t.basis}: {insight.basis.map(describeBasis).join(' · ')}</p>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 // ==================== MAIN COMPONENT ====================
 export function PersonaCore() {
   const navigate = useNavigate();
@@ -330,7 +411,7 @@ export function PersonaCore() {
   const result = useMemo<PersonaResult | null>(() => {
     if (gameState.answers.length !== totalQuestions) return null;
     const profile = scoreBfi(gameState.answers);
-    return { profile, matches: matchArchetypes(profile) };
+    return { profile, matches: matchArchetypes(profile), insights: deriveInsights(profile, gameState.answers) };
   }, [gameState.answers, totalQuestions]);
 
   const handleAnswer = (value: number) => {
@@ -436,7 +517,9 @@ export function PersonaCore() {
             <div className="relative z-10">
               <div className="flex items-center gap-2 text-cyan-500/70 text-xs mb-2"><Shield className="w-4 h-4" /><span>{t.identified} · {top.similarity}% {t.match}</span></div>
               <GlitchText text={`${top.archetype.id}: ${top.archetype.name[lang]}`} className="text-2xl md:text-4xl font-bold text-cyan-100" style={FONT} />
-              <p className="text-cyan-400/60 text-xs mt-3" style={FONT}>{top.archetype.formula[lang]}</p>
+              <p className="text-cyan-400/70 text-xs mt-3" style={FONT}>
+                {t.keyTraits}: {(Object.entries(top.archetype.targets) as [Trait, -1 | 0 | 1][]).map(([trait, target]) => `${t.traitNames[trait]} ${t.levels[targetLevel(trait, target)]}`).join(' · ')}
+              </p>
               <p className="text-cyan-300/70 text-xs mt-2" style={FONT}>
                 {t.secondary}: {matches.slice(1, 3).map((m) => `${m.archetype.name[lang]} (${m.similarity}%)`).join(' · ')}
               </p>
@@ -446,11 +529,12 @@ export function PersonaCore() {
             <div className="flex items-center gap-2 text-cyan-400 text-xs mb-4 uppercase tracking-wider"><Brain className="w-4 h-4" /><span>{t.holistic}</span></div>
             <p className="text-cyan-100/80 leading-relaxed" style={FONT}><Typewriter text={top.archetype.summary[lang]} delay={500} /></p>
           </motion.div>
+          <InsightsSection lang={lang} insights={result.insights} profile={profile} answers={gameState.answers} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="p-4 border border-cyan-500/30 bg-cyan-950/10">
               <div className="flex items-center justify-between gap-2 text-cyan-400 text-xs mb-4 uppercase tracking-wider"><span>{t.traits}</span><span className="normal-case text-cyan-400/50">{t.avgMarker}</span></div>
               {(['O', 'C', 'E', 'A', 'N'] as Trait[]).map((trait) => (
-                <GradientBar key={trait} label={t.traitNames[trait]} value={display[trait].value} level={t.levels[display[trait].level]} refValue={display[trait].refPomp} gradient={TRAIT_STYLE[trait].gradient} icon={TRAIT_STYLE[trait].icon} />
+                <GradientBar key={trait} label={t.traitNames[trait]} description={t.traitDesc[trait]} value={display[trait].value} level={t.levels[display[trait].level]} refValue={display[trait].refPomp} gradient={TRAIT_STYLE[trait].gradient} icon={TRAIT_STYLE[trait].icon} />
               ))}
             </motion.div>
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="p-4 border border-cyan-500/30 bg-cyan-950/10 flex flex-col">
