@@ -100,6 +100,15 @@ const SYMBOLS: Record<RoleId, (c: string) => ReactNode> = {
       <path d="M19 17 H45 L40 12 M45 27 H19 L24 32" stroke={c} {...stroke} strokeWidth={2.5} />
     </>
   ),
+  pinokio: (c) => (
+    <>
+      <circle cx="24" cy="34" r="11" stroke={c} {...stroke} />
+      <path d="M33 31 L56 26 L33 37Z" fill={c} />
+      <circle cx="26" cy="31" r="2.2" fill={c} />
+      <path d="M12 26 Q23 11 35 26Z" fill={c} />
+      <path d="M18 42 Q23 45 27 42" stroke={c} {...stroke} strokeWidth={2} />
+    </>
+  ),
   saint: (c) => (
     <>
       <ellipse cx="32" cy="15" rx="12" ry="4.5" stroke={c} {...stroke} />

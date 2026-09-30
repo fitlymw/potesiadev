@@ -67,6 +67,16 @@ export const SAINT_ROLES: RoleId[] = ['saint', 'heretic'];
 export const SAINT_GHOST_VOTES = 2;
 /** Balance settings (tuned by simulation). */
 export const TUNING = { gougeFromNight: 1, gougeUnstoppable: false, hereticKeepsLife: false, fangRestAfterShield: true, fangShieldLastDay: 2 };
+/** Anonymous night chat (Pinokio and Joker): message length and how often the Pinokio may send. */
+export const CHAT_MAX_CHARS = 25;
+export function chatUses(players: number): number {
+  return players <= 7 ? 2 : 3;
+}
+/** Chance that an ability reading roles or sides sees the Pinokio as Dark. */
+export const PINOKIO_DARK_CHANCE = 0.7;
+/** In Joker mode, role-reading abilities (Aura, Rune, Dirge) are only this often correct. */
+export const JOKER_READ_TRUE = 0.15;
+
 /** Chance per Standard match that the Saint / the Heretic is in play (never both). */
 export const SAINT_CHANCE = 0.33;
 export const HERETIC_CHANCE = 0.11;
@@ -90,6 +100,8 @@ export const TIMING = {
   dawnTurnFirst: 25,
   minTurn: 5,
   phoneToCenter: 10,
+  /** An anonymous message is shown this long before the recipient's night turn starts. */
+  messageShow: 5,
   discussion: 300,
   nomination: 300,
 };
@@ -98,7 +110,7 @@ export type Lang = 'en' | 'id';
 export type Phase = 'howto' | 'setup' | 'seating' | 'nightPass' | 'night' | 'nightEnd' | 'morning' | 'dawnPass' | 'dawn' | 'day' | 'final';
 export type Side = 'good' | 'evil';
 /** Why a piece of information may be wrong: poisoned, dying from a Gouge, or the solo-boss first-night blackout. */
-export type Quality = 'true' | 'poison' | 'gouge' | 'blind';
+export type Quality = 'true' | 'poison' | 'gouge' | 'blind' | 'fog';
 export type Guard = 'aegis' | 'tide';
 export type AttackResult = 'killed' | Guard | 'dead';
 
@@ -132,6 +144,8 @@ export type ReportItem =
   | { k: 'hiveGrew'; target: number }
   | { k: 'jokerSight'; seen: SightEntry[] }
   | { k: 'saintVision'; target: number; dark: RoleId; light: RoleId }
+  | { k: 'message'; text: string }
+  | { k: 'messageSent'; to: number; text: string }
   | { k: 'died' }
   | { k: 'becameBoss'; role: RoleId }
   | { k: 'nothing' };
@@ -214,7 +228,18 @@ export type ChronItem =
   | { k: 'saintRevealed'; player: number }
   | { k: 'saintKill'; by: number; target: number; blocked: boolean }
   | { k: 'saintRevive'; by: number; target: number }
-  | { k: 'saintVision'; by: number; target: number; dark: RoleId; light: RoleId; real: 'dark' | 'light' | 'none' };
+  | { k: 'saintVision'; by: number; target: number; dark: RoleId; light: RoleId; real: 'dark' | 'light' | 'none' }
+  | { k: 'message'; by: number; to: number; text: string };
+
+/** An anonymous night message (the recipient always sees the sender as "?"). */
+export interface ChatMessage {
+  from: number;
+  to: number;
+  text: string;
+  night: number;
+  /** Lap turn on which it was sent: delivered on the recipient's next turn after it. */
+  turn: number;
+}
 
 export interface ChronEntry {
   round: number;
@@ -223,10 +248,13 @@ export interface ChronEntry {
 }
 
 /** give: hand the crown to a new holder · recall: take it back · keep: leave it where it is. */
-export type JokerMove = 'give' | 'recall' | 'keep';
+/** give: hand the crown on · recall: take it back · keep: leave it · chat: send an anonymous message instead (crown stays). */
+export type JokerMove = 'give' | 'recall' | 'keep' | 'chat';
 export interface JokerPlan {
   mode: JokerMove;
   targets: number[];
+  /** Message text when mode is 'chat'. */
+  text?: string;
   /** Glitch: two players who swap seats at dawn (or empty). */
   swap: number[];
 }
@@ -335,6 +363,10 @@ export interface NfState {
   score: Record<number, Score>;
   /** Tonight's "least trusted" picks by Light players. */
   suspicions: Record<number, number>;
+  /** Anonymous messages waiting for their recipient's next night turn. */
+  messages: ChatMessage[];
+  /** Messages the Pinokio may still send. */
+  chatLeft: number;
   /** Night of the first night death, and who died then. */
   firstBloodNight: number | null;
   firstBlood: number[];
@@ -390,6 +422,8 @@ export const initialState = (lang: Lang = 'id', mode: Mode = 'standard'): NfStat
   chronicle: [],
   score: {},
   suspicions: {},
+  messages: [],
+  chatLeft: 0,
   firstBloodNight: null,
   firstBlood: [],
   saintUsed: false,
@@ -407,7 +441,7 @@ export type Action =
   | { type: 'ARRANGE'; players: string[] }
   | { type: 'START'; seed: number }
   | { type: 'CONFIRM_PASS' }
-  | { type: 'SUBMIT_NIGHT'; targets: number[]; joker?: { mode: JokerMove; swap: number[] }; suspect?: number }
+  | { type: 'SUBMIT_NIGHT'; targets: number[]; joker?: { mode: JokerMove; swap: number[] }; suspect?: number; message?: string }
   | { type: 'SAINT_ACT'; mode: 'kill' | 'revive'; target: number }
   | { type: 'SHOW_MORNING' }
   | { type: 'BEGIN_DAWN' }
@@ -529,7 +563,7 @@ export function livingNeighbours(state: NfState, p: number): [number | null, num
 
 export type NightActionKind =
   | 'aura' | 'protect' | 'poison' | 'kill' | 'gouge' | 'bane' | 'revive' | 'revenge' | 'tide'
-  | 'infect' | 'frenzy' | 'crownKill' | 'joker' | 'dummy';
+  | 'infect' | 'frenzy' | 'crownKill' | 'joker' | 'chat' | 'dummy';
 
 export interface NightSpec {
   kind: NightActionKind;
@@ -589,6 +623,7 @@ export function nightSpec(state: NfState, p: number): NightSpec {
     return { ...spec('infect', double, double === 2 ? [1, 2] : [1]), excludeInfected: true };
   }
   if (role === 'joker') return spec('joker', 1, []);
+  if (role === 'pinokio' && state.chatLeft > 0) return spec('chat', 1, [0, 1]);
   if (role === 'aura') return spec('aura', 2, [2], true);
   if (role === 'mirage') return spec('poison', 1, [1]);
   if (role === 'gouge' && state.night >= TUNING.gougeFromNight) return spec('gouge', double, [double]);
@@ -618,6 +653,17 @@ export function validTargets(state: NfState, p: number, targets: number[]): bool
   );
 }
 
+/** Trimmed message text within the length limit, or null when empty. */
+export function cleanChat(text: string | undefined): string | null {
+  const t = (text ?? '').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX_CHARS);
+  return t ? t : null;
+}
+
+/** Messages the player receives at the start of this night turn. */
+export function pendingMessages(state: NfState, p: number): ChatMessage[] {
+  return state.messages.filter((m) => m.to === p && (m.night < state.night || (m.night === state.night && m.turn < state.turn)));
+}
+
 export function validJokerPlan(state: NfState, p: number, plan: JokerPlan): boolean {
   const ok = (t: number) => Number.isInteger(t) && t >= 0 && t < state.players.length && state.alive[t];
   if (plan.swap.length && (plan.swap.length !== 2 || plan.swap[0] === plan.swap[1] || !plan.swap.every(ok))) return false;
@@ -629,6 +675,8 @@ export function validJokerPlan(state: NfState, p: number, plan: JokerPlan): bool
       return jokerOptions(state).canRecall && targets.length === 0;
     case 'give':
       return targets.length === 1 && ok(targets[0]) && targets[0] !== p && targets[0] !== state.crowned;
+    case 'chat':
+      return targets.length === 1 && ok(targets[0]) && targets[0] !== p && cleanChat(plan.text) !== null;
   }
 }
 
@@ -660,8 +708,13 @@ export function dealRoles(n: number, random: () => number, mode: Mode = 'standar
     lum -= BLIGHT_EXTRA_CURSED;
     cur += BLIGHT_EXTRA_CURSED;
   }
+  if (mode === 'joker') {
+    inPlay.push('pinokio');
+    if (cur > 0) cur -= 1;
+    else lum -= 1;
+  }
   // Not enough Cursed roles (small pool or synergy lock): the rest become Luminaries
-  lum += cur - draw(rolesOfTeam('cursed'), cur).length;
+  lum += cur - draw(rolesOfTeam('cursed').filter((r) => !inPlay.includes(r)), cur).length;
   const lumPool = rolesOfTeam('luminary').filter((r) => r !== 'saint' && (mode === 'standard' || !STANDARD_ONLY_ROLES.includes(r)));
   if (withSaint) {
     inPlay.push('saint');
@@ -869,7 +922,7 @@ export function resolveNight(state: NfState): NfState {
         swaps.push([plan.swap[0], plan.swap[1]]);
         chron.push({ k: 'glitch', by: joker, a: plan.swap[0], b: plan.swap[1] });
       }
-      if (plan.mode !== 'keep' && holder !== null) report(holder, { k: 'crownTaken' });
+      if ((plan.mode === 'give' || plan.mode === 'recall') && holder !== null) report(holder, { k: 'crownTaken' });
       if (plan.mode === 'recall' && holder !== null) {
         report(joker, { k: 'crownReturned', target: holder });
         chron.push({ k: 'recall', by: joker, target: holder });
@@ -1015,11 +1068,17 @@ export function resolveNight(state: NfState): NfState {
     return { k: 'pair', source, a, b, role: roleOf(who) };
   };
 
+  /** The Pinokio reads as Dark 70% of the time, to side and role checks alike. */
+  const darkRolePool = [...rolesOfTeam('shadow'), ...STANDARD_BOSSES];
+  const readsDark = (x: number) => (roles[x] === 'pinokio' ? rng() < PINOKIO_DARK_CHANCE : registersEvil(after, x));
+  const seenRole = (x: number) => (roles[x] === 'pinokio' && rng() < PINOKIO_DARK_CHANCE ? pick(darkRolePool) : roles[x]);
   for (const p of everyone) {
     if (!alive[p] || state.crowned === p || kindOf(p) === 'frenzy') continue;
     const role = roles[p];
-    const q = quality(p);
-    const lie = q === 'poison' || q === 'gouge';
+    // Joker mode: role readers are right only 15% of the time (from night 2; night 1 is the blackout)
+    const fog = state.mode === 'joker' && night >= 2 && ['aura', 'rune', 'dirge'].includes(role) && rng() >= JOKER_READ_TRUE;
+    const q = fog ? 'fog' : quality(p);
+    const lie = q === 'poison' || q === 'gouge' || q === 'fog';
     const random = q === 'blind';
     let item: ReportItem | null = null;
 
@@ -1027,11 +1086,11 @@ export function resolveNight(state: NfState): NfState {
       const pair = state.choices[p];
       if (!pair) item = { k: 'noChoice' };
       else {
-        const truth = registersEvil(after, pair[0]) || registersEvil(after, pair[1]);
+        const truth = readsDark(pair[0]) || readsDark(pair[1]);
         item = { k: 'aura', a: pair[0], b: pair[1], yes: random ? rng() < 0.5 : lie ? !truth : truth };
       }
     } else if (role === 'rune') {
-      const truth = livingNeighbours(after, p).filter((x): x is number => x !== null && registersEvil(after, x)).length;
+      const truth = livingNeighbours(after, p).filter((x): x is number => x !== null && readsDark(x)).length;
       item = { k: 'rune', count: random ? pick([0, 1, 2]) : lie ? pick([0, 1, 2].filter((c) => c !== truth)) : truth };
     } else if (role === 'trace') {
       const seen = [...visited];
@@ -1043,7 +1102,7 @@ export function resolveNight(state: NfState): NfState {
       const ex = state.executedToday;
       if (ex === null) item = { k: 'dirgeNone' };
       else if (lie) item = { k: 'dirge', player: ex, role: pick([...rolesOfTeam('luminary'), ...rolesOfTeam('shadow')].filter((r) => r !== roles[ex])), infected: false };
-      else item = { k: 'dirge', player: ex, role: roles[ex], infected: infected[ex] };
+      else item = { k: 'dirge', player: ex, role: seenRole(ex), infected: infected[ex] };
     } else if (night === 1) {
       if (role === 'spark') {
         const holders = others(p).filter((x) => ROLES[roles[x]].team === 'luminary');
@@ -1055,9 +1114,9 @@ export function resolveNight(state: NfState): NfState {
       } else if (role === 'glyph') {
         // Snare hides from Glyph; a Baiter may be shown as a Shadow
         const shadows = others(p).filter((x) => ROLES[roles[x]].team === 'shadow' && roles[x] !== 'snare');
-        const baiters = others(p).filter((x) => roles[x] === 'baiter' && rng() < 0.5);
+        const baiters = others(p).filter((x) => (roles[x] === 'baiter' && rng() < 0.5) || (roles[x] === 'pinokio' && rng() < PINOKIO_DARK_CHANCE));
         const holders = [...shadows, ...baiters];
-        const roleOf = (x: number) => (roles[x] === 'baiter' ? pick(rolesOfTeam('shadow').filter((r) => r !== 'snare')) : roles[x]);
+        const roleOf = (x: number) => (roles[x] === 'baiter' || roles[x] === 'pinokio' ? pick(rolesOfTeam('shadow').filter((r) => r !== 'snare')) : roles[x]);
         if (lie || random) item = falsePair(p, 'glyph', 'shadow');
         else item = holders.length ? truePair(p, 'glyph', holders, roleOf) : { k: 'pairNone', source: 'glyph' };
       } else if (role === 'snare') {
@@ -1065,7 +1124,7 @@ export function resolveNight(state: NfState): NfState {
         const left = seats[(s + 1) % n];
         const right = seats[(s - 1 + n) % n];
         const fake = () => pick([...rolesOfTeam('luminary'), ...rolesOfTeam('cursed')]);
-        item = { k: 'snare', left, leftRole: lie ? fake() : roles[left], right, rightRole: lie ? fake() : roles[right] };
+        item = { k: 'snare', left, leftRole: lie ? fake() : seenRole(left), right, rightRole: lie ? fake() : seenRole(right) };
       }
     }
     if (item) {
@@ -1115,7 +1174,8 @@ export function resolveNight(state: NfState): NfState {
       const goodPool = [...rolesOfTeam('luminary').filter((r) => !STANDARD_ONLY_ROLES.includes(r)), ...rolesOfTeam('cursed')];
       const seen = near.map((x, i) => {
         const real = i !== liar;
-        return { ...x, role: real ? roles[x.player] : pick(goodPool.filter((r) => r !== roles[x.player])), real };
+        const role = real ? seenRole(x.player) : pick(goodPool.filter((r) => r !== roles[x.player]));
+        return { ...x, role, real: role === roles[x.player] };
       });
       report(jokerIdx, { k: 'jokerSight', seen: seen.map(({ player, role, side }) => ({ player, role, side })) });
       chron.push({ k: 'jokerSight', by: jokerIdx, seen });
@@ -1152,7 +1212,7 @@ export function resolveNight(state: NfState): NfState {
     if (next !== undefined) watch = { ...watch, target: next };
   }
   if (watch && watch.target !== null) {
-    const truth = roles[watch.target];
+    const truth = seenRole(watch.target);
     const darkPool = [...rolesOfTeam('shadow'), ...STANDARD_BOSSES];
     const lightPool = [...rolesOfTeam('luminary'), ...rolesOfTeam('cursed')];
     const truthDark = darkPool.includes(truth);
@@ -1304,6 +1364,7 @@ export function reducer(state: NfState, action: Action): NfState {
         ghostVote: Array(n).fill(0),
         infected: Array(n).fill(false),
         score: Object.fromEntries(range(n).map((p) => [p, noScore()])),
+        chatLeft: chatUses(n),
         night: 1,
       };
     }
@@ -1320,11 +1381,29 @@ export function reducer(state: NfState, action: Action): NfState {
       const suspect = spec.kind === 'dummy' ? (action.targets.length === 1 ? action.targets[0] : undefined) : action.suspect;
       if (suspect !== undefined && canSuspect(state, p) && suspect !== p && state.alive[suspect]) suspicions = { ...suspicions, [p]: suspect };
       if (spec.kind === 'joker') {
-        const plan: JokerPlan = { mode: action.joker?.mode ?? 'keep', targets: action.targets, swap: action.joker?.swap ?? [] };
+        const plan: JokerPlan = { mode: action.joker?.mode ?? 'keep', targets: action.targets, swap: action.joker?.swap ?? [], text: action.message };
         jokerPlan = validJokerPlan(state, p, plan) ? plan : { mode: 'keep', targets: [], swap: [] };
-      } else if (spec.kind !== 'dummy' && validTargets(state, p, action.targets)) choices = { ...choices, [p]: action.targets };
+      } else if (spec.kind !== 'dummy' && spec.kind !== 'chat' && validTargets(state, p, action.targets)) choices = { ...choices, [p]: action.targets };
+      // Messages waiting for this player were shown before the turn: file them in the notes
+      const inbox = pendingMessages(state, p);
+      let reports = state.reports;
+      for (const m of inbox) reports = addReport(reports, p, state.night, { k: 'message', text: m.text });
+      let messages = state.messages.filter((m) => !inbox.includes(m));
+      let { chatLeft } = state;
+      const sent: ChronItem[] = [];
+      const send = (to: number, text: string) => {
+        messages = [...messages, { from: p, to, text, night: state.night, turn: state.turn }];
+        reports = addReport(reports, p, state.night, { k: 'messageSent', to, text });
+        sent.push({ k: 'message', by: p, to, text });
+      };
+      const text = cleanChat(action.message);
+      if (spec.kind === 'chat' && text && action.targets.length === 1 && validTargets(state, p, action.targets)) {
+        send(action.targets[0], text);
+        chatLeft -= 1;
+      }
+      if (spec.kind === 'joker' && jokerPlan?.mode === 'chat') send(jokerPlan.targets[0], cleanChat(jokerPlan.text)!);
       const turn = state.turn + 1;
-      const next = { ...state, choices, jokerPlan, suspicions, turn };
+      const next = { ...state, choices, jokerPlan, suspicions, turn, reports, messages, chatLeft, chronicle: [...state.chronicle, ...sent.map((item) => ({ round: state.night, stage: 'night' as const, item }))] };
       return turn >= n ? resolveNight(next) : { ...next, phase: 'nightPass' };
     }
     case 'SHOW_MORNING':

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, ScrollText, Map as MapIcon, Volume2, VolumeX, Plus, Trash2, Users, EyeOff, Moon, Sun, Skull, Crosshair, Gavel, Pause, Play, RotateCcw, HelpCircle, Ghost, Megaphone, Lock, Shuffle, Trophy, Sparkles } from 'lucide-react';
+import { ArrowLeft, BookOpen, ScrollText, Map as MapIcon, Volume2, VolumeX, Plus, Trash2, Users, EyeOff, Moon, Sun, Skull, Crosshair, Gavel, Pause, Play, RotateCcw, HelpCircle, Ghost, Megaphone, Lock, Shuffle, Trophy, Sparkles, Mail } from 'lucide-react';
 import { useGamification } from '@/context/GamificationContext';
 import { pauseBgMusic, resumeBgMusic } from '@/lib/audio';
 import { RoundTable } from '@/components/games/party/RoundTable';
@@ -14,6 +14,8 @@ import {
   nightSpec,
   jokerOptions,
   canSuspect,
+  pendingMessages,
+  CHAT_MAX_CHARS,
   canStillVote,
   turnPlayer,
   canGhostVote,
@@ -167,6 +169,7 @@ function promptFor(state: NfState, player: number, spec: NightSpec, t: UIText): 
     case 'infect': return t.prompt.infect(spec.count);
     case 'frenzy': return t.prompt.frenzy;
     case 'crownKill': return t.prompt.crownKill;
+    case 'chat': return t.prompt.chat(state.chatLeft);
     default: return canSuspect(state, player) ? t.prompt.dummy : t.prompt.dummyDark;
   }
 }
@@ -176,7 +179,30 @@ type TurnProps = { state: NfState; dispatch: (a: Action) => void; t: UIText; onH
 
 function NightTurn(props: TurnProps) {
   const player = pendingPlayer(props.state)!;
+  // Anonymous messages are shown first, for a few seconds, before the turn clock starts
+  const [inbox] = useState(() => pendingMessages(props.state, player));
+  const [reading, setReading] = useState(inbox.length > 0);
+  if (reading) return <MessageFlash texts={inbox.map((m) => m.text)} t={props.t} onDone={() => setReading(false)} />;
   return nightSpec(props.state, player).kind === 'joker' ? <JokerTurn {...props} /> : <ActionTurn {...props} />;
+}
+
+function MessageFlash({ texts, t, onDone }: { texts: string[]; t: UIText; onDone: () => void }) {
+  useEffect(() => {
+    buzz([80, 60, 80]);
+  }, []);
+  const { remaining } = useTurnClock(TIMING.messageShow, onDone);
+  return (
+    <div className="flex flex-col items-center text-center pt-8 space-y-5">
+      <Mail className="w-14 h-14 text-amber-300" />
+      <h2 className="text-lg text-amber-100" style={PIXEL}>{t.msgTitle}</h2>
+      <p className="text-sm text-indigo-200/80">{t.msgFrom}</p>
+      {texts.map((text, i) => (
+        <p key={i} className="w-full text-2xl font-bold text-amber-50 border-2 border-amber-400/60 bg-amber-500/10 p-4 break-words">“{text}”</p>
+      ))}
+      <p className="text-xs text-indigo-300/70">{t.msgHint}</p>
+      <p className="text-3xl text-indigo-100" style={PIXEL}>{Math.ceil(remaining)}</p>
+    </div>
+  );
 }
 
 function ActionTurn({ state, dispatch, t, onHint }: TurnProps) {
@@ -185,6 +211,12 @@ function ActionTurn({ state, dispatch, t, onHint }: TurnProps) {
   const [selected, setSelected] = useState<number[]>([]);
   const [suspect, setSuspect] = useState<number | null>(null);
   const showSuspect = canSuspect(state, player) && spec.kind !== 'dummy';
+  const isChat = spec.kind === 'chat';
+  const [text, setText] = useState('');
+  const textRef = useRef('');
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
   const suspectRef = useRef<number | null>(null);
   useEffect(() => {
     suspectRef.current = suspect;
@@ -198,11 +230,11 @@ function ActionTurn({ state, dispatch, t, onHint }: TurnProps) {
     sfxGlitch();
     buzz([60, 40, 60]);
     const current = selectedRef.current;
-    dispatch({ type: 'SUBMIT_NIGHT', targets: spec.accept.includes(current.length) ? current : [], suspect: suspectRef.current ?? undefined });
+    dispatch({ type: 'SUBMIT_NIGHT', targets: spec.accept.includes(current.length) ? current : [], suspect: suspectRef.current ?? undefined, message: textRef.current || undefined });
   }, [dispatch, spec.accept]);
   const { elapsed, remaining } = useTurnClock(total, onExpire);
   const unlocked = elapsed >= TIMING.minTurn;
-  const ready = selected.length > 0 && spec.accept.includes(selected.length);
+  const ready = selected.length > 0 && spec.accept.includes(selected.length) && (!isChat || text.trim().length > 0);
   const toggle = (p: number) => setSelected((prev) => toggleIn(prev, p, spec.count));
   const canPick = (p: number) =>
     (spec.pool === 'dead' ? !state.alive[p] : state.alive[p]) && (spec.allowSelf || p !== player) && !(spec.excludeInfected && state.infected[p]);
@@ -214,6 +246,13 @@ function ActionTurn({ state, dispatch, t, onHint }: TurnProps) {
       {state.crowned === player && <p className="text-xs text-amber-200/80">{t.crownNote}</p>}
       {state.night === 1 && <p className="text-xs text-amber-200/80">{t.keepSecret}</p>}
       <p className="text-sm text-indigo-50">{promptFor(state, player, spec, t)}</p>
+      {isChat && (
+        <div className="space-y-1">
+          <input value={text} maxLength={CHAT_MAX_CHARS} onChange={(e) => setText(e.target.value)} placeholder={t.chatPlaceholder} aria-label={t.chatPlaceholder} className="w-full bg-black/40 border-2 border-amber-400/50 px-3 py-2.5 outline-none focus:border-amber-300" />
+          <p className="text-xs text-right text-indigo-300/70">{t.chatCount(text.length)}</p>
+          <p className="text-sm text-indigo-50">{t.chatTo}</p>
+        </div>
+      )}
       {spec.pool === 'seat' ? (
         <div className="border border-amber-400/40 bg-black/30 p-2">
           <RoundTable
@@ -237,8 +276,8 @@ function ActionTurn({ state, dispatch, t, onHint }: TurnProps) {
           <PlayerPicker state={state} selected={suspect === null ? [] : [suspect]} onToggle={(p) => setSuspect((prev) => (prev === p ? null : p))} canPick={(p) => state.alive[p] && p !== player} self={player} t={t} />
         </div>
       )}
-      <button disabled={!ready || !unlocked} onClick={() => dispatch({ type: 'SUBMIT_NIGHT', targets: selected, suspect: suspect ?? undefined })} className={primaryBtn} style={PIXEL}>
-        {unlocked ? t.hideAndPass : t.minWait(Math.ceil(TIMING.minTurn - elapsed))}
+      <button disabled={!ready || !unlocked} onClick={() => dispatch({ type: 'SUBMIT_NIGHT', targets: selected, suspect: suspect ?? undefined, message: isChat ? text : undefined })} className={primaryBtn} style={PIXEL}>
+        {unlocked ? (isChat ? t.chatSend : t.hideAndPass) : t.minWait(Math.ceil(TIMING.minTurn - elapsed))}
       </button>
       {spec.accept.includes(0) && (
         <button disabled={!unlocked} onClick={() => dispatch({ type: 'SUBMIT_NIGHT', targets: [], suspect: suspect ?? undefined })} className={secondaryBtn} style={PIXEL}>{t.skipAbility}</button>
@@ -254,15 +293,17 @@ function JokerTurn({ state, dispatch, t, onHint }: TurnProps) {
   const [swap, setSwap] = useState<number[]>([]);
   const [move, setMove] = useState<JokerMove>('keep');
   const [giveTo, setGiveTo] = useState<number | null>(null);
+  const [text, setText] = useState('');
   const total = state.night === 1 ? TIMING.nightTurnFirst : TIMING.nightTurn;
-  const plan = useRef({ swap, move, giveTo });
+  const plan = useRef({ swap, move, giveTo, text });
   useEffect(() => {
-    plan.current = { swap, move, giveTo };
-  }, [swap, move, giveTo]);
+    plan.current = { swap, move, giveTo, text };
+  }, [swap, move, giveTo, text]);
   const submit = useCallback(() => {
     const p = plan.current;
-    const mode: JokerMove = p.move === 'give' && p.giveTo === null ? 'keep' : p.move;
-    dispatch({ type: 'SUBMIT_NIGHT', targets: mode === 'give' ? [p.giveTo!] : [], joker: { mode, swap: p.swap.length === 2 ? p.swap : [] } });
+    const incomplete = (p.move === 'give' || p.move === 'chat') && (p.giveTo === null || (p.move === 'chat' && !p.text.trim()));
+    const mode: JokerMove = incomplete ? 'keep' : p.move;
+    dispatch({ type: 'SUBMIT_NIGHT', targets: mode === 'give' || mode === 'chat' ? [p.giveTo!] : [], joker: { mode, swap: p.swap.length === 2 ? p.swap : [] }, message: mode === 'chat' ? p.text : undefined });
   }, [dispatch]);
   const onExpire = useCallback(() => {
     sfxGlitch();
@@ -270,10 +311,10 @@ function JokerTurn({ state, dispatch, t, onHint }: TurnProps) {
   }, [submit]);
   const { elapsed, remaining } = useTurnClock(total, onExpire);
   const unlocked = elapsed >= TIMING.minTurn;
-  const ready = (move !== 'give' || giveTo !== null) && swap.length !== 1;
+  const ready = (move !== 'give' || giveTo !== null) && (move !== 'chat' || (giveTo !== null && text.trim().length > 0)) && swap.length !== 1;
   const holder = state.crowned;
   const moveBtn = (m: JokerMove, label: string, disabled = false) => (
-    <button key={m} disabled={disabled} onClick={() => setMove(m)} className={`py-2.5 px-2 border text-sm disabled:opacity-30 ${move === m ? 'border-amber-300 bg-amber-500/20 text-amber-100 font-bold' : 'border-indigo-600/50 text-indigo-100'}`}>{label}</button>
+    <button key={m} disabled={disabled} onClick={() => { setMove(m); setGiveTo(null); }} className={`py-2.5 px-2 border text-sm disabled:opacity-30 ${move === m ? 'border-amber-300 bg-amber-500/20 text-amber-100 font-bold' : 'border-indigo-600/50 text-indigo-100'}`}>{label}</button>
   );
   return (
     <div className="space-y-4 pb-20">
@@ -292,6 +333,7 @@ function JokerTurn({ state, dispatch, t, onHint }: TurnProps) {
           {moveBtn('give', t.joker.give)}
           {moveBtn('recall', t.joker.recall, !canRecall)}
           {moveBtn('keep', t.joker.keep)}
+          {moveBtn('chat', t.joker.chat)}
         </div>
         {move === 'give' && (
           <>
@@ -300,6 +342,15 @@ function JokerTurn({ state, dispatch, t, onHint }: TurnProps) {
           </>
         )}
         {move === 'recall' && <p className="text-xs text-indigo-300/70">{t.joker.recallHint}</p>}
+        {move === 'chat' && (
+          <>
+            <p className="text-xs text-indigo-300/70">{t.joker.chatHint}</p>
+            <input value={text} maxLength={CHAT_MAX_CHARS} onChange={(e) => setText(e.target.value)} placeholder={t.chatPlaceholder} aria-label={t.chatPlaceholder} className="w-full bg-black/40 border-2 border-amber-400/50 px-3 py-2.5 outline-none focus:border-amber-300" />
+            <p className="text-xs text-right text-indigo-300/70">{t.chatCount(text.length)}</p>
+            <p className="text-sm text-indigo-50">{t.chatTo}</p>
+            <PlayerPicker state={state} selected={giveTo === null ? [] : [giveTo]} onToggle={(p) => setGiveTo((prev) => (prev === p ? null : p))} canPick={(p) => state.alive[p] && p !== player} self={player} t={t} />
+          </>
+        )}
       </div>
       <button disabled={!ready || !unlocked} onClick={submit} className={primaryBtn} style={PIXEL}>
         {unlocked ? t.hideAndPass : t.minWait(Math.ceil(TIMING.minTurn - elapsed))}
@@ -904,6 +955,7 @@ export function NightfallDeception() {
         </ol>
         <p className="text-indigo-200/70 text-sm">{t.seatingPass}</p>
         <p className="text-xs text-amber-200/80">{t.modes[state.mode].name} · {t.composition(state.players.length, state.mode)}</p>
+        {state.mode === 'joker' && <p className="text-sm text-amber-100 border-2 border-amber-400/60 bg-amber-500/10 p-3 leading-relaxed">{t.jokerFogWarning}</p>}
         <button onClick={() => { startNightMusic(); expGiven.current = false; dispatch({ type: 'START', seed: Math.floor(Math.random() * 2 ** 31) }); }} className={primaryBtn} style={PIXEL}>{t.beginNight}</button>
         <button onClick={() => arrange(state.players)} className={`${secondaryBtn} flex items-center justify-center gap-2`} style={PIXEL}><RotateCcw className="w-4 h-4" />{t.reshuffle}</button>
       </motion.div>

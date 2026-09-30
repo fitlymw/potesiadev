@@ -3,7 +3,7 @@
  * morning-report sentences and the end-of-game chronicle (EN + ID).
  */
 import { ROLES, type RoleId } from '@/data/nightfallRoles';
-import { NF_MIN_PLAYERS, NF_MAX_PLAYERS, SETUP_TABLE, TIMING, TIDE_USES, POINTS, FEAT_POINTS, SAINT_GHOST_VOTES, setupFor, type Lang, type Mode, type ReportItem, type ChronItem, type Quality, type AttackResult, type Guard } from '@/lib/party/nightfall';
+import { NF_MIN_PLAYERS, NF_MAX_PLAYERS, SETUP_TABLE, TIMING, TIDE_USES, CHAT_MAX_CHARS, POINTS, FEAT_POINTS, SAINT_GHOST_VOTES, setupFor, type Lang, type Mode, type ReportItem, type ChronItem, type Quality, type AttackResult, type Guard } from '@/lib/party/nightfall';
 
 type ModeText = { name: string; desc: string };
 
@@ -73,6 +73,7 @@ export const UI = {
       infect: (count: number): string => (count === 2 ? 'The Void was executed: choose 2 players to infect.' : 'Choose 1 player to infect.'),
       frenzy: 'The Zombie is dead. Choose 1 player for the horde to kill — the most chosen target dies.',
       crownKill: 'Choose a SEAT NUMBER to attack. Whoever sits there after tonight’s seat swaps is hit. If you skip, you die in the morning.',
+      chat: (left: number): string => `Send 1 anonymous message (max ${CHAT_MAX_CHARS} characters) to 1 player — or skip. ${left} left.`,
       dummy: 'No action for you tonight. Tap the player you trust the least — if they really are on the Dark side, you earn points at the end of the game.',
       dummyDark: 'No action for you tonight. Tap any player to disguise your turn.',
       dead: 'You are dead. Tap any player to disguise your turn.',
@@ -97,6 +98,8 @@ export const UI = {
       keep: 'Leave it as it is',
       giveHint: 'The new holder learns it at dawn and must attack a seat every night from tomorrow night.',
       recallHint: 'Cancels the current holder’s attack tonight.',
+      chat: 'Send a message (crown stays)',
+      chatHint: `Anonymous (max ${CHAT_MAX_CHARS} characters), shown at the start of the recipient’s next night turn. The crown does not move tonight.`,
     },
     lastPlayerTitle: 'You were the last player tonight',
     lastPlayerHint: 'Put the phone in the middle of the table now. Everyone, keep your eyes on it…',
@@ -199,6 +202,14 @@ export const UI = {
     roleBookHint: 'Take a screenshot to share with the group. Every game uses only some of these roles.',
     setupLegend: 'Players: Luminary · Cursed · Shadow · Boss',
     seatMap: 'Seat map',
+    chatPlaceholder: 'Your message…',
+    chatCount: (n: number): string => `${n}/${CHAT_MAX_CHARS}`,
+    chatTo: 'Send it to whom?',
+    chatSend: 'SEND — HIDE & PASS',
+    msgTitle: 'Incoming message',
+    msgFrom: 'From: ?',
+    msgHint: 'Only you can see this. Your turn starts in a moment.',
+    jokerFogWarning: '⚠️ Joker mode: role-reading abilities (Aura, Rune, Dirge) are only 15% correct, and the first night is a blackout. Anonymous “?” messages may come from the Pinokio — or the Joker.',
     suspectOptional: 'Also: who do you trust the least? (optional — points if they really are Dark)',
     saintTitle: (name: string): string => `${name} is the SAINT`,
     saintMust: `First blood has fallen. Before nominations the Saint must choose: kill 1 living player, or bring back a player who died last night. The Saint dies right after (keeping ${SAINT_GHOST_VOTES} ghost votes, at most 1 per day).`,
@@ -300,6 +311,7 @@ export const UI = {
       infect: (count: number): string => (count === 2 ? 'Void telah dieksekusi: pilih 2 pemain untuk diinfeksi.' : 'Pilih 1 pemain untuk diinfeksi.'),
       frenzy: 'Zombie sudah mati. Pilih 1 pemain untuk dibunuh gerombolan — target yang paling banyak dipilih akan mati.',
       crownKill: 'Pilih NOMOR KURSI yang akan diserang. Siapa pun yang duduk di sana setelah pertukaran kursi malam ini akan terkena. Jika kamu melewati, kamu mati saat pagi.',
+      chat: (left: number): string => `Kirim 1 pesan tanpa nama (maks. ${CHAT_MAX_CHARS} huruf) ke 1 pemain — atau lewati. Sisa ${left} kali.`,
       dummy: 'Tidak ada aksi untukmu malam ini. Ketuk pemain yang paling tidak kamu percaya — jika ia benar Kubu Gelap, kamu mendapat poin di akhir permainan.',
       dummyDark: 'Tidak ada aksi untukmu malam ini. Ketuk pemain mana saja untuk menyamarkan giliranmu.',
       dead: 'Kamu sudah mati. Ketuk pemain mana saja untuk menyamarkan giliranmu.',
@@ -324,6 +336,8 @@ export const UI = {
       keep: 'Biarkan seperti sekarang',
       giveHint: 'Pemegang baru tahu saat fajar dan wajib menyerang satu kursi setiap malam mulai besok malam.',
       recallHint: 'Membatalkan serangan pemegang mahkota malam ini.',
+      chat: 'Kirim pesan (mahkota tetap)',
+      chatHint: `Tanpa nama (maks. ${CHAT_MAX_CHARS} huruf), muncul di awal giliran malam berikutnya dari penerima. Mahkota tidak berpindah malam ini.`,
     },
     lastPlayerTitle: 'Kamu pemain terakhir malam ini',
     lastPlayerHint: 'Taruh HP di tengah meja sekarang. Semua pemain, perhatikan HP-nya…',
@@ -426,6 +440,14 @@ export const UI = {
     roleBookHint: 'Ambil screenshot untuk dibagikan ke grup. Setiap permainan hanya memakai sebagian dari peran-peran ini.',
     setupLegend: 'Pemain: Luminary · Cursed · Shadow · Bos',
     seatMap: 'Peta kursi',
+    chatPlaceholder: 'Tulis pesan…',
+    chatCount: (n: number): string => `${n}/${CHAT_MAX_CHARS}`,
+    chatTo: 'Kirim ke siapa?',
+    chatSend: 'KIRIM — SEMBUNYIKAN & OPER',
+    msgTitle: 'Pesan masuk',
+    msgFrom: 'Dari: ?',
+    msgHint: 'Hanya kamu yang melihat ini. Giliranmu dimulai sebentar lagi.',
+    jokerFogWarning: '⚠️ Mode Joker: kemampuan membaca peran (Aura, Rune, Dirge) hanya 15% benar, dan malam pertama adalah blackout. Pesan tanpa nama “?” bisa dari Pinokio — atau dari Joker.',
     suspectOptional: 'Tambahan: siapa yang paling tidak kamu percaya? (opsional — dapat poin jika ia benar Kubu Gelap)',
     saintTitle: (name: string): string => `${name} adalah SAINT`,
     saintMust: `First blood telah terjadi. Sebelum nominasi, Saint wajib memilih: membunuh 1 pemain yang hidup, atau menghidupkan kembali pemain yang mati tadi malam. Saint langsung gugur setelahnya (dengan ${SAINT_GHOST_VOTES} suara hantu, maksimal 1 per hari).`,
@@ -477,10 +499,10 @@ export const RULES: Record<Lang, { title: string; items: string[] }[]> = {
     { title: 'Seats & swaps', items: [`The Joker (every night) and the Tide (${TIDE_USES}× per game) can swap two players’ seats. Swaps happen before any seat attack that night.`, 'Seats matter: Rune counts neighbours, the Viper counts the last voter in seat order, and the phone follows the seats.', 'Every morning shows the current seating. When seats changed, a before/after picture tells who must swap chairs.'] },
     { title: 'Morning', items: ['Deaths and highlights are announced: players saved by Aegis or Tide, revivals, Pyre revenge, Pact deaths.', `Then the phone goes around again (${TIMING.dawnTurn}s, ${TIMING.dawnTurnFirst}s on the first morning): each player privately reads their report and chooses to read it aloud or keep it. Everyone gets the same choice, so nobody is exposed — but staying quiet can look suspicious.`, 'Everything you learn is saved in “My secret notes” under the Role hint button, available on every private turn.'] },
     { title: 'Day', items: [`Discussion (${TIMING.discussion / 60} min): everyone may stand up, walk around and form small groups to share who they trust — or to lie.`, 'When the bell rings, return to your own seat.', `Nominations & voting (${TIMING.nomination / 60} min): each living player nominates at most once, each player can be nominated at most once per day. Vote by raising hands; the app records who voted.`, 'An execution needs more than half of the living players. When the day ends, the nomination with the most valid votes is executed; a tie means nobody is executed.', 'Nova uses the “Day ability” button in public, once per game. If the target is the boss, the boss dies. Hit or miss, the real Nova dies at once and completely (no ghost vote). A pretender survives — and is exposed.'] },
-    { title: 'Joker mode', items: ['The Joker cannot kill. Each night it may give the crown to another player, take it back, or leave it — and swap two players’ seats (itself included).', 'The crown holder learns it at dawn and, from the next night, must attack a SEAT NUMBER every night (numbers only, no names) or die in the morning. Their own role ability does not work while they hold it — neither at night nor during the day (no Nova shot, no Echo double vote…). They keep their side and do not know who the Joker is.', 'The attack hits whoever sits in that seat after the night’s swaps. Taking the crown away cancels that night’s attack.', 'Passive: every night the Joker learns the roles of its left and right living neighbours — but one of the two is false. Moving seats is the only way to find the truth.'] },
+    { title: 'Joker mode', items: ['The Joker cannot kill. Each night it may give the crown to another player, take it back, or leave it — and swap two players’ seats (itself included).', 'The crown holder learns it at dawn and, from the next night, must attack a SEAT NUMBER every night (numbers only, no names) or die in the morning. Their own role ability does not work while they hold it — neither at night nor during the day (no Nova shot, no Echo double vote…). They keep their side and do not know who the Joker is.', 'The attack hits whoever sits in that seat after the night’s swaps. Taking the crown away cancels that night’s attack.', 'Each night the Joker may send one anonymous message (max 25 characters) instead of moving the crown — it arrives from “?”, just like the Pinokio’s. There is always a Pinokio in Joker mode.', 'Joker mode fog: Aura, Rune and Dirge are only 15% correct.', 'Passive: every night the Joker learns the roles of its left and right living neighbours — but one of the two is false. Moving seats is the only way to find the truth.'] },
     { title: 'Zombie mode', items: ['On odd nights (1, 3, 5…) the Zombie infects a player: they join the Dark side, keep their ability and learn who the Zombie is. Aegis and Tide block infections.', 'If the Zombie dies, the horde enters a Frenzy: on odd nights each infected player picks a kill and the most chosen target dies.'] },
     { title: 'Death', items: ['Dead players stay at the table and may keep talking, but lose their normal vote.', 'Each dead player has one ghost vote to use once for the rest of the game. A Nova who fired is dead completely and has no ghost vote.', 'The seat-map button shows who is alive, who still has a ghost vote and who can no longer vote.'] },
-    { title: 'Poison & false information', items: ['A poisoned player’s ability fails that night and the next day: information becomes false, protection and shots fail. A Gouge victim’s information is false until they die.', 'Baiter always reads as Dark; Snare always reads as Light. Trust, but verify.'] },
+    { title: 'Poison & false information', items: ['The Pinokio (Cursed) reads as Dark to side and role checks 70% of the time.', 'A poisoned player’s ability fails that night and the next day: information becomes false, protection and shots fail. A Gouge victim’s information is false until they die.', 'Baiter always reads as Dark; Snare always reads as Light. Trust, but verify.'] },
     { title: 'Saint & Heretic', items: ['The Saint (Light) has no night action and cannot be poisoned. The day after the first night death, the Oracle reveals the Saint to everyone; before nominations the Saint must kill 1 living player or revive a first-blood victim, and dies right after with 2 ghost votes (max 1 per day).', 'A kill is blocked if the target was protected by Aegis or Tide the night before. When the next player dies, the Saint learns 2 possible roles for them (one Dark, one Light): usually one is true, but 30% of the time both are false.', 'The Heretic (Shadow) works exactly the same and is announced as “the Saint” too — a Saint and a Heretic are never in the same game. Both are Standard-mode only: each match has a 33% chance of a Saint and an 11% chance of a Heretic (only when there is a Shadow seat).'] },
     { title: 'Points & MVP', items: [`Light players: every night you can name who you trust least (it is the tap itself on a no-action night). +${POINTS.suspect} when that player really is Dark.`, `Light players also score +${POINTS.voteRight} for voting for a Dark player who gets executed (${POINTS.voteWrong} for a Light one) and points for abilities that work: saving someone +${FEAT_POINTS.save}, Pyre hitting a Dark player +${FEAT_POINTS.pyre}, Nova hitting the boss +${FEAT_POINTS.nova}, reviving a Light player +${FEAT_POINTS.revive}, a Saint killing a Dark player +${FEAT_POINTS.saintKill}.`, `Dark players: +${POINTS.survived} per night survived and +${POINTS.kill} per kill. The Joker scores its crown holder’s kills, the Zombie its horde’s kills.`, `Everyone on the winning side gets +${POINTS.win}. The player with the most points is the MVP.`] },
     { title: 'After the game', items: ['The chronicle tells the whole story, round by round: every night action, every report, every vote.'] },
@@ -492,10 +514,10 @@ export const RULES: Record<Lang, { title: string; items: string[] }[]> = {
     { title: 'Kursi & pertukaran', items: [`Joker (setiap malam) dan Tide (${TIDE_USES}× per permainan) bisa menukar kursi dua pemain. Pertukaran terjadi sebelum serangan kursi malam itu.`, 'Kursi itu penting: Rune menghitung tetangga, Viper menghitung pemilih terakhir sesuai urutan kursi, dan HP mengikuti urutan kursi.', 'Setiap pagi ditampilkan posisi duduk sekarang. Jika ada kursi yang berubah, gambar sebelum/sesudah menunjukkan siapa yang harus bertukar kursi.'] },
     { title: 'Pagi', items: ['Kematian dan sorotan diumumkan: pemain yang diselamatkan Aegis atau Tide, kebangkitan, balas dendam Pyre, kematian karena Pact.', `Lalu HP berkeliling lagi (${TIMING.dawnTurn} detik, ${TIMING.dawnTurnFirst} detik di pagi pertama): setiap pemain membaca laporan rahasianya dan memilih membacakannya atau menyimpannya. Semua pemain mendapat pilihan yang sama sehingga tidak ada yang ketahuan — tapi memilih diam bisa terlihat mencurigakan.`, 'Semua yang kamu ketahui tersimpan di "Catatan rahasiaku" pada tombol Petunjuk Peran, dan bisa dibuka di setiap giliran rahasiamu.'] },
     { title: 'Siang', items: [`Diskusi (${TIMING.discussion / 60} menit): semua boleh berdiri, berkeliling, dan membentuk kelompok kecil untuk berbagi siapa yang dipercaya — atau untuk berbohong.`, 'Saat bel berbunyi, kembali ke kursi masing-masing.', `Nominasi & voting (${TIMING.nomination / 60} menit): setiap pemain hidup menominasikan paling banyak sekali, dan setiap pemain paling banyak dinominasikan sekali per hari. Voting dengan angkat tangan; aplikasi mencatat siapa yang memilih.`, 'Eksekusi butuh lebih dari setengah pemain yang hidup. Saat hari berakhir, nominasi dengan suara sah terbanyak dieksekusi; jika seri, tidak ada yang dieksekusi.', 'Nova memakai tombol "Kemampuan siang" secara terbuka, sekali per permainan. Jika targetnya bos, bos itu mati. Kena atau meleset, Nova asli langsung mati total (tanpa suara hantu). Yang berpura-pura tetap hidup — dan ketahuan.'] },
-    { title: 'Mode Joker', items: ['Joker tidak bisa membunuh. Setiap malam ia boleh memberikan mahkota ke pemain lain, menariknya kembali, atau membiarkannya — dan menukar kursi dua pemain (termasuk dirinya).', 'Pemegang mahkota tahu saat fajar dan, mulai malam berikutnya, wajib menyerang satu NOMOR KURSI setiap malam (hanya angka, tanpa nama) atau ia mati saat pagi. Kemampuan perannya tidak berlaku selama memegangnya — baik malam maupun siang (tanpa tembakan Nova, tanpa suara ganda Echo…). Ia tetap di kubunya dan tidak tahu siapa Joker.', 'Serangan mengenai siapa pun yang duduk di kursi itu setelah pertukaran kursi malam itu. Menarik mahkota membatalkan serangan malam itu.', 'Pasif: setiap malam Joker mengetahui peran tetangga hidup di kiri dan kanannya — tapi salah satu dari keduanya palsu. Berpindah kursi adalah satu-satunya cara menemukan kebenaran.'] },
+    { title: 'Mode Joker', items: ['Joker tidak bisa membunuh. Setiap malam ia boleh memberikan mahkota ke pemain lain, menariknya kembali, atau membiarkannya — dan menukar kursi dua pemain (termasuk dirinya).', 'Pemegang mahkota tahu saat fajar dan, mulai malam berikutnya, wajib menyerang satu NOMOR KURSI setiap malam (hanya angka, tanpa nama) atau ia mati saat pagi. Kemampuan perannya tidak berlaku selama memegangnya — baik malam maupun siang (tanpa tembakan Nova, tanpa suara ganda Echo…). Ia tetap di kubunya dan tidak tahu siapa Joker.', 'Serangan mengenai siapa pun yang duduk di kursi itu setelah pertukaran kursi malam itu. Menarik mahkota membatalkan serangan malam itu.', 'Setiap malam Joker boleh mengirim satu pesan tanpa nama (maks. 25 huruf) sebagai ganti memindahkan mahkota — pesan datang dari “?”, sama seperti pesan Pinokio. Di mode Joker selalu ada Pinokio.', 'Kabut mode Joker: Aura, Rune, dan Dirge hanya 15% benar.', 'Pasif: setiap malam Joker mengetahui peran tetangga hidup di kiri dan kanannya — tapi salah satu dari keduanya palsu. Berpindah kursi adalah satu-satunya cara menemukan kebenaran.'] },
     { title: 'Mode Zombie', items: ['Di malam ganjil (1, 3, 5…) Zombie menginfeksi satu pemain: ia pindah ke Kubu Gelap, tetap punya kemampuannya, dan tahu siapa Zombie. Aegis dan Tide memblokir infeksi.', 'Jika Zombie mati, gerombolan mengamuk (Frenzy): di malam ganjil setiap pemain terinfeksi memilih target, dan target yang paling banyak dipilih mati.'] },
     { title: 'Kematian', items: ['Pemain yang mati tetap di meja dan boleh terus berbicara, tapi kehilangan hak suara biasa.', 'Setiap pemain mati punya satu suara hantu yang bisa dipakai sekali sampai akhir permainan. Nova yang sudah menembak mati total dan tidak punya suara hantu.', 'Tombol peta kursi menunjukkan siapa yang hidup, siapa yang masih punya suara hantu, dan siapa yang sudah tidak bisa voting.'] },
-    { title: 'Racun & info palsu', items: ['Kemampuan pemain yang diracun gagal malam itu dan siang berikutnya: informasinya palsu, perlindungan dan tembakannya gagal. Informasi korban Gouge palsu sampai ia mati.', 'Baiter selalu terbaca Gelap; Snare selalu terbaca Terang. Percaya boleh, tapi tetap periksa.'] },
+    { title: 'Racun & info palsu', items: ['Pinokio (Cursed) terbaca sebagai Kubu Gelap oleh pemeriksaan kubu dan peran 70% dari waktu.', 'Kemampuan pemain yang diracun gagal malam itu dan siang berikutnya: informasinya palsu, perlindungan dan tembakannya gagal. Informasi korban Gouge palsu sampai ia mati.', 'Baiter selalu terbaca Gelap; Snare selalu terbaca Terang. Percaya boleh, tapi tetap periksa.'] },
     { title: 'Saint & Heretic', items: ['Saint (Terang) tidak punya aksi malam dan tidak bisa diracun. Siang setelah kematian malam pertama, The Oracle mengumumkan Saint ke semua pemain; sebelum nominasi Saint wajib membunuh 1 pemain yang hidup atau menghidupkan kembali korban first blood, lalu langsung gugur dengan 2 suara hantu (maksimal 1 per hari).', 'Pembunuhan gagal jika targetnya dilindungi Aegis atau Tide pada malam sebelumnya. Saat pemain berikutnya mati, Saint mengetahui 2 kemungkinan perannya (satu Gelap, satu Terang): biasanya salah satunya benar, tapi 30% kemungkinan keduanya salah.', 'Heretic (Shadow) bekerja persis sama dan juga diumumkan sebagai “Saint” — Saint dan Heretic tidak pernah ada di permainan yang sama. Keduanya hanya ada di mode Standar: setiap permainan punya peluang 33% ada Saint dan 11% ada Heretic (hanya jika ada kursi Shadow).'] },
     { title: 'Poin & MVP', items: [`Pemain Kubu Terang: setiap malam kamu bisa menyebut siapa yang paling tidak kamu percaya (di malam tanpa aksi, ketukanmu itulah pilihannya). +${POINTS.suspect} jika pemain itu benar Kubu Gelap.`, `Pemain Terang juga mendapat +${POINTS.voteRight} karena memilih pemain Gelap yang akhirnya dieksekusi (${POINTS.voteWrong} untuk pemain Terang) dan poin dari kemampuan yang berhasil: menyelamatkan +${FEAT_POINTS.save}, Pyre mengenai pemain Gelap +${FEAT_POINTS.pyre}, Nova mengenai bos +${FEAT_POINTS.nova}, menghidupkan pemain Terang +${FEAT_POINTS.revive}, Saint membunuh pemain Gelap +${FEAT_POINTS.saintKill}.`, `Pemain Kubu Gelap: +${POINTS.survived} per malam bertahan hidup dan +${POINTS.kill} per pembunuhan. Joker mendapat poin dari pembunuhan pemegang mahkotanya, Zombie dari pembunuhan gerombolannya.`, `Semua pemain di kubu pemenang mendapat +${POINTS.win}. Pemain dengan poin terbanyak adalah MVP.`] },
     { title: 'Setelah permainan', items: ['Kronik menceritakan seluruh kisah ronde demi ronde: setiap aksi malam, setiap laporan, setiap voting.'] },
@@ -588,6 +610,10 @@ export function reportLine(item: ReportItem, names: string[], lang: Lang): strin
         : id ? `Infeksi terhadap ${n(item.target)} gagal.` : `Infecting ${n(item.target)} failed.`;
     case 'hiveGrew':
       return id ? `${n(item.target)} bergabung dengan gerombolan.` : `${n(item.target)} joined the horde.`;
+    case 'message':
+      return id ? `📩 Pesan dari ?: “${item.text}”` : `📩 Message from ?: “${item.text}”`;
+    case 'messageSent':
+      return id ? `Pesanmu terkirim ke ${n(item.to)}: “${item.text}”` : `Your message to ${n(item.to)} was sent: “${item.text}”`;
     case 'saintVision':
       return id
         ? `Penglihatan Saint: ${n(item.target)} mungkin ${role(item.dark)} (Kubu Gelap) atau ${role(item.light)} (Kubu Terang). Hati-hati — bisa jadi keduanya salah.`
@@ -610,8 +636,8 @@ export function reportLine(item: ReportItem, names: string[], lang: Lang): strin
 
 // ==================== CHRONICLE ====================
 const FALSE_TAG: Record<Lang, Record<Exclude<Quality, 'true'>, string>> = {
-  en: { poison: ' (false — poisoned)', gouge: ' (false — dying from a Gouge)', blind: ' (unreliable — blackout)' },
-  id: { poison: ' (palsu — diracun)', gouge: ' (palsu — sekarat karena Gouge)', blind: ' (tidak bisa dipercaya — blackout)' },
+  en: { poison: ' (false — poisoned)', gouge: ' (false — dying from a Gouge)', blind: ' (unreliable — blackout)', fog: ' (false — Joker’s fog)' },
+  id: { poison: ' (palsu — diracun)', gouge: ' (palsu — sekarat karena Gouge)', blind: ' (tidak bisa dipercaya — blackout)', fog: ' (salah — kabut Joker)' },
 };
 
 /** One sentence of the end-of-game chronicle, in plain third-person language. */
@@ -764,6 +790,8 @@ export function chronicleLine(item: ChronItem, names: string[], roles: RoleId[],
         ? `${who(item.by)} melihat ${n(item.target)} mungkin ${role(item.dark)} atau ${role(item.light)} (${truth}).`
         : `${who(item.by)} saw that ${n(item.target)} may be the ${role(item.dark)} or the ${role(item.light)} (${truth}).`;
     }
+    case 'message':
+      return id ? `${who(item.by)} mengirim pesan tanpa nama ke ${n(item.to)}: “${item.text}”` : `${who(item.by)} sent an anonymous message to ${n(item.to)}: “${item.text}”`;
     case 'suspicion':
       return id ? `${who(item.p)} paling tidak mempercayai ${n(item.target)} — tepat, ia Kubu Gelap!` : `${who(item.p)} trusted ${n(item.target)} the least — rightly, they are Dark!`;
     case 'apex':

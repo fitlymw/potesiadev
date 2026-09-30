@@ -13,7 +13,7 @@ export type Team = 'luminary' | 'cursed' | 'shadow' | 'nightbringer';
 
 export type RoleId =
   | 'aura' | 'aegis' | 'glyph' | 'rune' | 'trace' | 'dirge' | 'nova' | 'spark' | 'gaze' | 'loom' | 'pyre' | 'apex' | 'pact' | 'tide' | 'saint'
-  | 'echo' | 'baiter' | 'void'
+  | 'echo' | 'baiter' | 'void' | 'pinokio'
   | 'mirage' | 'snare' | 'viper' | 'blight' | 'heretic'
   | 'abyss' | 'fang' | 'gouge' | 'bane'
   | 'joker' | 'zombie';
@@ -129,6 +129,10 @@ export const ROLES: Record<RoleId, RoleInfo> = {
     ['If you are executed, the Dark boss acts twice the next night.', 'Jika kamu dieksekusi, bos Kubu Gelap beraksi dua kali malam berikutnya.'],
     ['You are on the Light side. If the group executes you, the Dark boss gets a double action the following night (2 kills, or 2 infections for the Zombie).', 'Kamu Kubu Terang. Jika kelompok mengeksekusimu, bos Kubu Gelap mendapat aksi ganda pada malam berikutnya (2 pembunuhan, atau 2 infeksi untuk Zombie).'],
     [['Make sure the group does not execute you.', 'Pastikan kelompok tidak mengeksekusimu.']]),
+  pinokio: r('pinokio', 'cursed', 'Pinokio',
+    ['Sends anonymous night messages — but reads as Dark to most checks.', 'Mengirim pesan malam tanpa nama — tapi sering terbaca sebagai Kubu Gelap.'],
+    ['At night you may send 1 anonymous message (max 25 characters) to 1 player: 2 times per game with 5–7 players, 3 times with 8–10. It appears for 5 seconds at the start of their next night turn, from “?”. Your drawback: abilities that read sides or roles see you as Dark 70% of the time. In Joker mode there is always a Pinokio — and the Joker sends “?” messages too.', 'Di malam hari kamu boleh mengirim 1 pesan tanpa nama (maks. 25 huruf) ke 1 pemain: 2 kali per permainan untuk 5–7 pemain, 3 kali untuk 8–10 pemain. Pesan muncul 5 detik di awal giliran malam berikutnya dari pemain itu, dengan pengirim “?”. Kelemahanmu: kemampuan yang membaca kubu atau peran melihatmu sebagai Kubu Gelap 70% dari waktu. Di mode Joker selalu ada Pinokio — dan Joker juga mengirim pesan “?”.'],
+    [['Short and sharp: a hint, a doubt, or bait — you choose.', 'Singkat dan tajam: petunjuk, keraguan, atau umpan — kamu yang pilih.'], ['Nobody can tell your messages from the Joker’s.', 'Tidak ada yang bisa membedakan pesanmu dari pesan Joker.']]),
   // ==================== SHADOWS ====================
   mirage: r('mirage', 'shadow', 'Mirage',
     ['Each night, poison a player: their ability fails until the next night.', 'Tiap malam, racuni satu pemain: kemampuannya gagal sampai malam berikutnya.'],
