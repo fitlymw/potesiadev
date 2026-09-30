@@ -9,6 +9,7 @@ import { GamificationProvider } from '@/context/GamificationContext';
 import { LoadingScreen } from '@/components/common/LoadingScreen';
 import { PageRouteWrapper } from '@/components/common/PageRouteWrapper';
 import { LanguageGateway } from '@/components/LanguageGateway';
+import { BgMusicToggle } from '@/components/common/BgMusicToggle';
 
 import { initAudio } from '@/lib/audio';
 
@@ -117,6 +118,9 @@ function App() {
                 <Route path="*" element={landing} />
               </Routes>
             </Suspense>
+
+            {/* 4. Global mute for the background music */}
+            {loadingDone && <BgMusicToggle />}
           </AudioProvider>
         </Router>
       </GamificationProvider>

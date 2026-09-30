@@ -83,7 +83,7 @@ export const UI = {
     hideAndPass: 'DONE — HIDE & PASS',
     timeLeft: (s: number) => `${s}s`,
     crownBadge: '👑 You hold the Joker’s crown',
-    crownNote: 'While you hold the crown your own ability is paused. You keep your side — and you do not know who the Joker is.',
+    crownNote: 'While you hold the crown your role’s ability does not work — at night or during the day (no Nova shot, no Echo double vote, no Apex…). You keep your side — and you do not know who the Joker is.',
     yourSeat: (k: number) => `You sit in seat ${k}.`,
     seatChosen: (k: number | null): string => (k === null ? 'No seat chosen yet.' : `Target: seat ${k}`),
     infectedBadge: '🧟 Infected — you are on the Dark side',
@@ -123,7 +123,7 @@ export const UI = {
     testimonyKept: 'Kept quiet',
     backToSeats: 'Back to your seats!',
     nomination: 'Nominations & voting',
-    nominationHint: (need: number) => `Each living player may nominate once and each player can be nominated once per day. Voting is by show of hands. An execution needs at least ${need} votes. Highest valid vote (no tie) is executed when the day ends.`,
+    nominationHint: (need: number) => `Each living player may nominate once (not themselves) and each player can be nominated once per day. Voting is by show of hands. An execution needs at least ${need} votes. Highest valid vote (no tie) is executed when the day ends.`,
     pause: 'Pause',
     resume: 'Resume',
     addMinute: '+1 min',
@@ -150,8 +150,8 @@ export const UI = {
       executed: (name: string) => `${name} was executed.`,
       shielded: (name: string) => `The execution of ${name} failed mysteriously…`,
       noExecution: 'Nobody was executed.',
-      novaHit: (s: string, t: string) => `${s} shot ${t} — ${t} falls!`,
-      novaMiss: (s: string, t: string) => `${s} shot ${t}… nothing happened.`,
+      novaHit: (s: string, t: string) => `${s} shot ${t} — ${t} falls! ${s} gave their life for the shot.`,
+      novaMiss: (s: string, t: string, died: boolean) => (died ? `${s} shot ${t}… and missed. ${s} gave their life for nothing.` : `${s} shot ${t}… nothing happened.`),
       saved: (name: string, by: Guard, what: 'attack' | 'infect') =>
         `${name} was ${what === 'infect' ? 'nearly infected' : 'attacked'} last night — but ${by === 'aegis' ? 'the Aegis protected them' : 'the Tide’s seat swap shielded them'}!`,
       pyre: (by: string, t: string) => `The Pyre’s fire flares: ${t} burned together with ${by}.`,
@@ -194,6 +194,12 @@ export const UI = {
     roleBookTitle: 'Role book — all modes',
     roleBookHint: 'Take a screenshot to share with the group. Every game uses only some of these roles.',
     setupLegend: 'Players: Luminary · Cursed · Shadow · Boss',
+    seatMap: 'Seat map',
+    statusAlive: 'Alive',
+    statusGhost: 'Dead · ghost vote not used yet',
+    statusUsed: 'Dead · ghost vote already used',
+    statusGone: 'Dead completely (Nova) · cannot vote',
+    seatMapHint: 'Seat numbers go to the left from seat 1. Only public information is shown here.',
     soloBosses: 'Solo bosses · Joker & Zombie modes (no Shadows)',
     goals: {
       standard: { good: 'Execute the Nightbringer.', evil: 'Become as many as the living Light players.' },
@@ -276,7 +282,7 @@ export const UI = {
     hideAndPass: 'SELESAI — SEMBUNYIKAN & OPER',
     timeLeft: (s: number) => `${s} dtk`,
     crownBadge: '👑 Kamu memegang mahkota Joker',
-    crownNote: 'Selama memegang mahkota, kemampuanmu sendiri berhenti. Kamu tetap di kubumu — dan kamu tidak tahu siapa Joker.',
+    crownNote: 'Selama memegang mahkota, kemampuan peranmu tidak berlaku — malam maupun siang (tanpa tembakan Nova, tanpa suara ganda Echo, tanpa Apex…). Kamu tetap di kubumu — dan kamu tidak tahu siapa Joker.',
     yourSeat: (k: number) => `Kamu duduk di kursi ${k}.`,
     seatChosen: (k: number | null): string => (k === null ? 'Belum ada kursi yang dipilih.' : `Target: kursi ${k}`),
     infectedBadge: '🧟 Terinfeksi — kamu di Kubu Gelap',
@@ -316,7 +322,7 @@ export const UI = {
     testimonyKept: 'Memilih diam',
     backToSeats: 'Kembali ke kursi masing-masing!',
     nomination: 'Nominasi & voting',
-    nominationHint: (need: number) => `Setiap pemain hidup boleh menominasikan sekali dan setiap pemain hanya bisa dinominasikan sekali per hari. Voting dengan angkat tangan. Eksekusi butuh minimal ${need} suara. Nominasi dengan suara sah terbanyak (tidak seri) dieksekusi saat hari berakhir.`,
+    nominationHint: (need: number) => `Setiap pemain hidup boleh menominasikan sekali (tidak boleh dirinya sendiri) dan setiap pemain hanya bisa dinominasikan sekali per hari. Voting dengan angkat tangan. Eksekusi butuh minimal ${need} suara. Nominasi dengan suara sah terbanyak (tidak seri) dieksekusi saat hari berakhir.`,
     pause: 'Jeda',
     resume: 'Lanjut',
     addMinute: '+1 menit',
@@ -343,8 +349,8 @@ export const UI = {
       executed: (name: string) => `${name} telah dieksekusi.`,
       shielded: (name: string) => `Eksekusi terhadap ${name} gagal secara misterius…`,
       noExecution: 'Tidak ada yang dieksekusi.',
-      novaHit: (s: string, t: string) => `${s} menembak ${t} — ${t} tumbang!`,
-      novaMiss: (s: string, t: string) => `${s} menembak ${t}… tidak terjadi apa-apa.`,
+      novaHit: (s: string, t: string) => `${s} menembak ${t} — ${t} tumbang! ${s} gugur setelah melepaskan tembakannya.`,
+      novaMiss: (s: string, t: string, died: boolean) => (died ? `${s} menembak ${t}… meleset. ${s} gugur sia-sia.` : `${s} menembak ${t}… tidak terjadi apa-apa.`),
       saved: (name: string, by: Guard, what: 'attack' | 'infect') =>
         `${name} ${what === 'infect' ? 'hampir terinfeksi' : 'berusaha dibunuh'} tadi malam — tetapi ${by === 'aegis' ? 'Aegis melindunginya' : 'pertukaran kursi Tide menyelamatkannya'}!`,
       pyre: (by: string, t: string) => `Api Pyre menyala: ${t} ikut terbakar bersama ${by}.`,
@@ -387,6 +393,12 @@ export const UI = {
     roleBookTitle: 'Buku peran — semua mode',
     roleBookHint: 'Ambil screenshot untuk dibagikan ke grup. Setiap permainan hanya memakai sebagian dari peran-peran ini.',
     setupLegend: 'Pemain: Luminary · Cursed · Shadow · Bos',
+    seatMap: 'Peta kursi',
+    statusAlive: 'Hidup',
+    statusGhost: 'Mati · suara hantu belum dipakai',
+    statusUsed: 'Mati · suara hantu sudah dipakai',
+    statusGone: 'Mati total (Nova) · tidak bisa voting',
+    seatMapHint: 'Nomor kursi berurutan ke kiri mulai dari kursi 1. Hanya informasi publik yang ditampilkan di sini.',
     soloBosses: 'Bos tunggal · mode Joker & Zombie (tanpa Shadow)',
     goals: {
       standard: { good: 'Eksekusi Nightbringer.', evil: 'Jumlah Kubu Gelap menyamai Kubu Terang yang masih hidup.' },
@@ -405,26 +417,26 @@ export const RULES: Record<Lang, { title: string; items: string[] }[]> = {
   en: [
     { title: 'Modes & goals', items: ['Standard — Light side (Luminaries + Cursed) must execute the Nightbringer; the Dark side (Shadows + Nightbringer) wins by matching the living Light players.', 'Joker — no Shadows. The Joker never kills; the Light side wins when the Joker dies, the Joker wins when only 2 players remain. The hardest role in the game.', 'Zombie — no Shadows. The Light side must eliminate the Zombie and every infected player; the horde wins when it outnumbers the healthy players.'] },
     { title: 'Setup', items: [`${NF_MIN_PLAYERS}–${NF_MAX_PLAYERS} players sit around a round table in a random order shown by the app. Remember your seat number.`, `Role mix by player count (Standard): ${table} (Luminary/Cursed/Shadow/boss). In Joker and Zombie modes the Shadow seats become Luminaries.`, `A Blight in play replaces 2 Luminaries with 2 Cursed. Spark, Gaze and Glyph are not used in the solo modes.`, 'The phone is always passed to the player on the left.'] },
-    { title: 'Night', items: [`Every player — alive or dead — takes a secret turn: ${TIMING.nightTurn}s (${TIMING.nightTurnFirst}s on the first night).`, `The “done” button unlocks after ${TIMING.minTurn}s so fast turns don’t reveal who has no ability. Players without an action tap a player to disguise their turn.`, 'If time runs out, a complete selection still counts; otherwise that player does nothing tonight, and the phone moves to the left automatically.', `The last player puts the phone in the middle of the table. ${TIMING.phoneToCenter}s later a sound plays: a death bell if someone died, or a calm morning sound if nobody did.`, 'On the first night the Dark side learns its team, and the boss gets 3 bluff roles that are not in the game. In Joker and Zombie modes the first night is a blackout: information is unreliable.'] },
+    { title: 'Night', items: [`Every player — alive or dead — takes a secret turn: ${TIMING.nightTurn}s (${TIMING.nightTurnFirst}s on the first night).`, `The “done” button unlocks after ${TIMING.minTurn}s so fast turns don’t reveal who has no ability. Players without an action tap a player to disguise their turn.`, 'If time runs out, a complete selection still counts; otherwise that player does nothing tonight, and the phone moves to the left automatically.', `The last player puts the phone in the middle of the table. ${TIMING.phoneToCenter}s later a sunrise sound announces the morning, followed by a death bell if someone died or calm chimes if nobody did. Whenever the day ends (timer, Skip or End the day) a nightfall sound plays so everyone gathers.`, 'On the first night the Dark side learns its team, and the boss gets 3 bluff roles that are not in the game. In Joker and Zombie modes the first night is a blackout: information is unreliable.'] },
     { title: 'Seats & swaps', items: [`The Joker (every night) and the Tide (${TIDE_USES}× per game) can swap two players’ seats. Swaps happen before any seat attack that night.`, 'Seats matter: Rune counts neighbours, the Viper counts the last voter in seat order, and the phone follows the seats.', 'Every morning shows the current seating. When seats changed, a before/after picture tells who must swap chairs.'] },
     { title: 'Morning', items: ['Deaths and highlights are announced: players saved by Aegis or Tide, revivals, Pyre revenge, Pact deaths.', `Then the phone goes around again (${TIMING.dawnTurn}s, ${TIMING.dawnTurnFirst}s on the first morning): each player privately reads their report and chooses to read it aloud or keep it. Everyone gets the same choice, so nobody is exposed — but staying quiet can look suspicious.`, 'Everything you learn is saved in “My secret notes” under the Role hint button, available on every private turn.'] },
-    { title: 'Day', items: [`Discussion (${TIMING.discussion / 60} min): everyone may stand up, walk around and form small groups to share who they trust — or to lie.`, 'When the bell rings, return to your own seat.', `Nominations & voting (${TIMING.nomination / 60} min): each living player nominates at most once, each player can be nominated at most once per day. Vote by raising hands; the app records who voted.`, 'An execution needs more than half of the living players. When the day ends, the nomination with the most valid votes is executed; a tie means nobody is executed.', 'Nova uses the “Day ability” button in public. Anyone can pretend — only the real Nova’s shot works.'] },
-    { title: 'Joker mode', items: ['The Joker cannot kill. Each night it may give the crown to another player, take it back, or leave it — and swap two players’ seats (itself included).', 'The crown holder learns it at dawn and, from the next night, must attack a SEAT NUMBER every night (numbers only, no names) or die in the morning. Their own ability pauses; they keep their side and do not know who the Joker is.', 'The attack hits whoever sits in that seat after the night’s swaps. Taking the crown away cancels that night’s attack.'] },
+    { title: 'Day', items: [`Discussion (${TIMING.discussion / 60} min): everyone may stand up, walk around and form small groups to share who they trust — or to lie.`, 'When the bell rings, return to your own seat.', `Nominations & voting (${TIMING.nomination / 60} min): each living player nominates at most once, each player can be nominated at most once per day. Vote by raising hands; the app records who voted.`, 'An execution needs more than half of the living players. When the day ends, the nomination with the most valid votes is executed; a tie means nobody is executed.', 'Nova uses the “Day ability” button in public, once per game. If the target is the boss, the boss dies. Hit or miss, the real Nova dies at once and completely (no ghost vote). A pretender survives — and is exposed.'] },
+    { title: 'Joker mode', items: ['The Joker cannot kill. Each night it may give the crown to another player, take it back, or leave it — and swap two players’ seats (itself included).', 'The crown holder learns it at dawn and, from the next night, must attack a SEAT NUMBER every night (numbers only, no names) or die in the morning. Their own role ability does not work while they hold it — neither at night nor during the day (no Nova shot, no Echo double vote…). They keep their side and do not know who the Joker is.', 'The attack hits whoever sits in that seat after the night’s swaps. Taking the crown away cancels that night’s attack.'] },
     { title: 'Zombie mode', items: ['On odd nights (1, 3, 5…) the Zombie infects a player: they join the Dark side, keep their ability and learn who the Zombie is. Aegis and Tide block infections.', 'If the Zombie dies, the horde enters a Frenzy: on odd nights each infected player picks a kill and the most chosen target dies.'] },
-    { title: 'Death', items: ['Dead players stay at the table and may keep talking, but lose their normal vote.', 'Each dead player has one ghost vote to use once for the rest of the game.'] },
+    { title: 'Death', items: ['Dead players stay at the table and may keep talking, but lose their normal vote.', 'Each dead player has one ghost vote to use once for the rest of the game. A Nova who fired is dead completely and has no ghost vote.', 'The seat-map button shows who is alive, who still has a ghost vote and who can no longer vote.'] },
     { title: 'Poison & false information', items: ['A poisoned player’s ability fails that night and the next day: information becomes false, protection and shots fail. A Gouge victim’s information is false until they die.', 'Baiter always reads as Dark; Snare always reads as Light. Trust, but verify.'] },
     { title: 'After the game', items: ['The chronicle tells the whole story, round by round: every night action, every report, every vote.'] },
   ],
   id: [
     { title: 'Mode & tujuan', items: ['Standar — Kubu Terang (Luminary + Cursed) harus mengeksekusi Nightbringer; Kubu Gelap (Shadow + Nightbringer) menang jika jumlahnya menyamai Kubu Terang yang hidup.', 'Joker — tanpa Shadow. Joker tidak pernah membunuh; Kubu Terang menang jika Joker mati, Joker menang jika hanya tersisa 2 pemain. Peran tersulit dalam permainan.', 'Zombie — tanpa Shadow. Kubu Terang harus menyingkirkan Zombie dan semua pemain terinfeksi; gerombolan menang jika jumlahnya lebih banyak dari pemain yang sehat.'] },
     { title: 'Persiapan', items: [`${NF_MIN_PLAYERS}–${NF_MAX_PLAYERS} pemain duduk di meja bundar sesuai urutan acak dari aplikasi. Ingat nomor kursimu.`, `Komposisi peran per jumlah pemain (Standar): ${table} (Luminary/Cursed/Shadow/bos). Di mode Joker dan Zombie, jatah Shadow menjadi Luminary.`, 'Blight yang ikut bermain mengganti 2 Luminary dengan 2 Cursed. Spark, Gaze, dan Glyph tidak dipakai di mode bos tunggal.', 'HP selalu dioper ke pemain di sebelah kiri.'] },
-    { title: 'Malam', items: [`Setiap pemain — hidup maupun mati — mendapat giliran rahasia: ${TIMING.nightTurn} detik (${TIMING.nightTurnFirst} detik di malam pertama).`, `Tombol selesai baru aktif setelah ${TIMING.minTurn} detik supaya giliran yang cepat tidak membocorkan siapa yang tidak punya kemampuan. Pemain tanpa aksi mengetuk satu pemain untuk menyamarkan gilirannya.`, 'Jika waktu habis, pilihan yang sudah lengkap tetap dihitung; jika belum, pemain itu tidak beraksi malam ini, dan HP otomatis pindah ke kiri.', `Pemain terakhir menaruh HP di tengah meja. ${TIMING.phoneToCenter} detik kemudian terdengar suara: lonceng kematian jika ada yang mati, atau suara pagi yang tenang jika tidak ada.`, 'Di malam pertama Kubu Gelap saling mengenal, dan bos mendapat 3 peran samaran yang tidak ada dalam permainan. Di mode Joker dan Zombie, malam pertama adalah blackout: informasi tidak bisa dipercaya.'] },
+    { title: 'Malam', items: [`Setiap pemain — hidup maupun mati — mendapat giliran rahasia: ${TIMING.nightTurn} detik (${TIMING.nightTurnFirst} detik di malam pertama).`, `Tombol selesai baru aktif setelah ${TIMING.minTurn} detik supaya giliran yang cepat tidak membocorkan siapa yang tidak punya kemampuan. Pemain tanpa aksi mengetuk satu pemain untuk menyamarkan gilirannya.`, 'Jika waktu habis, pilihan yang sudah lengkap tetap dihitung; jika belum, pemain itu tidak beraksi malam ini, dan HP otomatis pindah ke kiri.', `Pemain terakhir menaruh HP di tengah meja. ${TIMING.phoneToCenter} detik kemudian terdengar suara matahari terbit menandai pagi, disusul lonceng kematian jika ada yang mati atau denting tenang jika tidak ada. Setiap kali siang berakhir (waktu habis, Lewati, atau Akhiri hari) terdengar suara malam tiba agar semua pemain berkumpul.`, 'Di malam pertama Kubu Gelap saling mengenal, dan bos mendapat 3 peran samaran yang tidak ada dalam permainan. Di mode Joker dan Zombie, malam pertama adalah blackout: informasi tidak bisa dipercaya.'] },
     { title: 'Kursi & pertukaran', items: [`Joker (setiap malam) dan Tide (${TIDE_USES}× per permainan) bisa menukar kursi dua pemain. Pertukaran terjadi sebelum serangan kursi malam itu.`, 'Kursi itu penting: Rune menghitung tetangga, Viper menghitung pemilih terakhir sesuai urutan kursi, dan HP mengikuti urutan kursi.', 'Setiap pagi ditampilkan posisi duduk sekarang. Jika ada kursi yang berubah, gambar sebelum/sesudah menunjukkan siapa yang harus bertukar kursi.'] },
     { title: 'Pagi', items: ['Kematian dan sorotan diumumkan: pemain yang diselamatkan Aegis atau Tide, kebangkitan, balas dendam Pyre, kematian karena Pact.', `Lalu HP berkeliling lagi (${TIMING.dawnTurn} detik, ${TIMING.dawnTurnFirst} detik di pagi pertama): setiap pemain membaca laporan rahasianya dan memilih membacakannya atau menyimpannya. Semua pemain mendapat pilihan yang sama sehingga tidak ada yang ketahuan — tapi memilih diam bisa terlihat mencurigakan.`, 'Semua yang kamu ketahui tersimpan di "Catatan rahasiaku" pada tombol Petunjuk Peran, dan bisa dibuka di setiap giliran rahasiamu.'] },
-    { title: 'Siang', items: [`Diskusi (${TIMING.discussion / 60} menit): semua boleh berdiri, berkeliling, dan membentuk kelompok kecil untuk berbagi siapa yang dipercaya — atau untuk berbohong.`, 'Saat bel berbunyi, kembali ke kursi masing-masing.', `Nominasi & voting (${TIMING.nomination / 60} menit): setiap pemain hidup menominasikan paling banyak sekali, dan setiap pemain paling banyak dinominasikan sekali per hari. Voting dengan angkat tangan; aplikasi mencatat siapa yang memilih.`, 'Eksekusi butuh lebih dari setengah pemain yang hidup. Saat hari berakhir, nominasi dengan suara sah terbanyak dieksekusi; jika seri, tidak ada yang dieksekusi.', 'Nova memakai tombol "Kemampuan siang" secara terbuka. Siapa pun bisa berpura-pura — hanya tembakan Nova asli yang berpengaruh.'] },
-    { title: 'Mode Joker', items: ['Joker tidak bisa membunuh. Setiap malam ia boleh memberikan mahkota ke pemain lain, menariknya kembali, atau membiarkannya — dan menukar kursi dua pemain (termasuk dirinya).', 'Pemegang mahkota tahu saat fajar dan, mulai malam berikutnya, wajib menyerang satu NOMOR KURSI setiap malam (hanya angka, tanpa nama) atau ia mati saat pagi. Kemampuannya sendiri berhenti; ia tetap di kubunya dan tidak tahu siapa Joker.', 'Serangan mengenai siapa pun yang duduk di kursi itu setelah pertukaran kursi malam itu. Menarik mahkota membatalkan serangan malam itu.'] },
+    { title: 'Siang', items: [`Diskusi (${TIMING.discussion / 60} menit): semua boleh berdiri, berkeliling, dan membentuk kelompok kecil untuk berbagi siapa yang dipercaya — atau untuk berbohong.`, 'Saat bel berbunyi, kembali ke kursi masing-masing.', `Nominasi & voting (${TIMING.nomination / 60} menit): setiap pemain hidup menominasikan paling banyak sekali, dan setiap pemain paling banyak dinominasikan sekali per hari. Voting dengan angkat tangan; aplikasi mencatat siapa yang memilih.`, 'Eksekusi butuh lebih dari setengah pemain yang hidup. Saat hari berakhir, nominasi dengan suara sah terbanyak dieksekusi; jika seri, tidak ada yang dieksekusi.', 'Nova memakai tombol "Kemampuan siang" secara terbuka, sekali per permainan. Jika targetnya bos, bos itu mati. Kena atau meleset, Nova asli langsung mati total (tanpa suara hantu). Yang berpura-pura tetap hidup — dan ketahuan.'] },
+    { title: 'Mode Joker', items: ['Joker tidak bisa membunuh. Setiap malam ia boleh memberikan mahkota ke pemain lain, menariknya kembali, atau membiarkannya — dan menukar kursi dua pemain (termasuk dirinya).', 'Pemegang mahkota tahu saat fajar dan, mulai malam berikutnya, wajib menyerang satu NOMOR KURSI setiap malam (hanya angka, tanpa nama) atau ia mati saat pagi. Kemampuan perannya tidak berlaku selama memegangnya — baik malam maupun siang (tanpa tembakan Nova, tanpa suara ganda Echo…). Ia tetap di kubunya dan tidak tahu siapa Joker.', 'Serangan mengenai siapa pun yang duduk di kursi itu setelah pertukaran kursi malam itu. Menarik mahkota membatalkan serangan malam itu.'] },
     { title: 'Mode Zombie', items: ['Di malam ganjil (1, 3, 5…) Zombie menginfeksi satu pemain: ia pindah ke Kubu Gelap, tetap punya kemampuannya, dan tahu siapa Zombie. Aegis dan Tide memblokir infeksi.', 'Jika Zombie mati, gerombolan mengamuk (Frenzy): di malam ganjil setiap pemain terinfeksi memilih target, dan target yang paling banyak dipilih mati.'] },
-    { title: 'Kematian', items: ['Pemain yang mati tetap di meja dan boleh terus berbicara, tapi kehilangan hak suara biasa.', 'Setiap pemain mati punya satu suara hantu yang bisa dipakai sekali sampai akhir permainan.'] },
+    { title: 'Kematian', items: ['Pemain yang mati tetap di meja dan boleh terus berbicara, tapi kehilangan hak suara biasa.', 'Setiap pemain mati punya satu suara hantu yang bisa dipakai sekali sampai akhir permainan. Nova yang sudah menembak mati total dan tidak punya suara hantu.', 'Tombol peta kursi menunjukkan siapa yang hidup, siapa yang masih punya suara hantu, dan siapa yang sudah tidak bisa voting.'] },
     { title: 'Racun & info palsu', items: ['Kemampuan pemain yang diracun gagal malam itu dan siang berikutnya: informasinya palsu, perlindungan dan tembakannya gagal. Informasi korban Gouge palsu sampai ia mati.', 'Baiter selalu terbaca Gelap; Snare selalu terbaca Terang. Percaya boleh, tapi tetap periksa.'] },
     { title: 'Setelah permainan', items: ['Kronik menceritakan seluruh kisah ronde demi ronde: setiap aksi malam, setiap laporan, setiap voting.'] },
   ],
@@ -498,8 +510,8 @@ export function reportLine(item: ReportItem, names: string[], lang: Lang): strin
       return id ? `${n(item.target)} adalah Cursed — seranganmu ter-reset dan target keduamu ikut diserang.` : `${n(item.target)} was a Cursed — your attack reset and your second target was attacked too.`;
     case 'crowned':
       return id
-        ? 'Kamu menerima MAHKOTA Joker! Mulai malam berikutnya kamu wajib menyerang satu nomor kursi setiap malam, atau kamu mati saat pagi. Kamu tetap di kubumu dan tidak tahu siapa Joker.'
-        : 'You received the Joker’s CROWN! From the next night you must attack a seat number every night, or you die in the morning. You keep your side and do not know who the Joker is.';
+        ? 'Kamu menerima MAHKOTA Joker! Mulai malam berikutnya kamu wajib menyerang satu nomor kursi setiap malam, atau kamu mati saat pagi. Selama memegangnya, kemampuan peranmu tidak berlaku, malam maupun siang. Kamu tetap di kubumu dan tidak tahu siapa Joker.'
+        : 'You received the Joker’s CROWN! From the next night you must attack a seat number every night, or you die in the morning. While you hold it, your role’s ability does not work, day or night. You keep your side and do not know who the Joker is.';
     case 'crownTaken':
       return id ? 'Mahkota telah diambil darimu. Kamu bebas lagi.' : 'The crown was taken from you. You are free again.';
     case 'crownGiven':
@@ -659,8 +671,8 @@ export function chronicleLine(item: ChronItem, names: string[], roles: RoleId[],
     case 'noExecution':
       return id ? 'Tidak ada yang dieksekusi.' : 'Nobody was executed.';
     case 'nova':
-      if (item.hit) return id ? `${who(item.shooter)} menembak ${who(item.target)} — tepat sasaran!` : `${who(item.shooter)} shot ${who(item.target)} — a direct hit!`;
-      if (item.real) return id ? `${who(item.shooter)} menembak ${n(item.target)} — meleset, kemampuannya habis.` : `${who(item.shooter)} shot ${n(item.target)} — a miss, the ability is used up.`;
+      if (item.hit) return id ? `${who(item.shooter)} menembak ${who(item.target)} — tepat sasaran! Nova gugur bersama tembakannya.` : `${who(item.shooter)} shot ${who(item.target)} — a direct hit! The Nova died with the shot.`;
+      if (item.real) return id ? `${who(item.shooter)} menembak ${n(item.target)} — meleset, dan Nova gugur sia-sia.` : `${who(item.shooter)} shot ${n(item.target)} — a miss, and the Nova died for nothing.`;
       return id ? `${who(item.shooter)} berpura-pura menembak ${n(item.target)}.` : `${who(item.shooter)} pretended to shoot ${n(item.target)}.`;
     case 'apex':
       return id ? `${who(item.by)} bertahan hingga tiga besar — voting seri memenangkan Kubu Terang!` : `${who(item.by)} survived to the final three — the tied vote won it for the Light side!`;

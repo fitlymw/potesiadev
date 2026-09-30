@@ -4,6 +4,42 @@ let clickSound: HTMLAudioElement | null = null;
 let transitionSound: HTMLAudioElement | null = null;
 let isInitialized = false;
 let hasUserInteracted = false;
+/** A game (e.g. Nightfall) has paused the background music to play its own. */
+let pausedByGame = false;
+
+// Site-wide mute for the background music only (click sounds and game audio are unaffected)
+const BG_MUTE_KEY = 'potesia-bg-muted';
+let bgMuted = (() => {
+  try {
+    return localStorage.getItem(BG_MUTE_KEY) === '1';
+  } catch {
+    return false;
+  }
+})();
+const muteListeners = new Set<() => void>();
+
+export function isBgMuted(): boolean {
+  return bgMuted;
+}
+
+export function setBgMuted(muted: boolean): void {
+  bgMuted = muted;
+  try {
+    localStorage.setItem(BG_MUTE_KEY, muted ? '1' : '0');
+  } catch {
+    // Storage unavailable: the choice lasts for this visit only
+  }
+  if (muted) bgMusic?.pause();
+  else attemptPlayBgMusic();
+  muteListeners.forEach((fn) => fn());
+}
+
+export function subscribeBgMuted(fn: () => void): () => void {
+  muteListeners.add(fn);
+  return () => {
+    muteListeners.delete(fn);
+  };
+}
 
 // Helper untuk jalur GitHub Pages agar mencari di folder /potesiadev/
 const getAssetUrl = (path: string) => {
@@ -48,7 +84,7 @@ export function initAudio() {
 }
 
 function attemptPlayBgMusic() {
-  if (bgMusic) {
+  if (bgMusic && !bgMuted && !pausedByGame) {
     bgMusic.play().catch(() => {
       console.log("Menunggu interaksi user untuk memutar musik...");
     });
@@ -77,9 +113,11 @@ export function stopBgMusic(): void {
 }
 
 export function pauseBgMusic(): void {
+  pausedByGame = true;
   if (bgMusic) bgMusic.pause();
 }
 
 export function resumeBgMusic(): void {
-  if (bgMusic) bgMusic.play().catch(() => {});
+  pausedByGame = false;
+  attemptPlayBgMusic();
 }

@@ -5,7 +5,9 @@
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { ROLES, TEAM_LABEL, ROLE_IDS, SOLO_BOSSES, type RoleId, type Team } from '@/data/nightfallRoles';
-import { SETUP_TABLE, type Lang, type Mode, type Report, type Side } from '@/lib/party/nightfall';
+import { SETUP_TABLE, type Lang, type Mode, type NfState, type Report, type Side } from '@/lib/party/nightfall';
+import { RoundTable } from '@/components/games/party/RoundTable';
+import { PLAYER_COLORS } from '@/components/games/party/colors';
 import { RoleIcon } from '@/components/games/nightfall/RoleIcon';
 import { TEAM_COLOR } from '@/components/games/nightfall/palette';
 import { UI, RULES, reportLine } from '@/components/games/nightfall/texts';
@@ -64,6 +66,53 @@ export function RoleBook({ lang }: { lang: Lang }) {
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+/** Public seat map: who sits where, who is alive, who can still vote. */
+export function SeatMap({ state }: { state: NfState }) {
+  const t = UI[state.lang];
+  // A Nova who fired died completely; any other dead player without a ghost vote has used it
+  const status = (p: number) =>
+    state.alive[p] ? 'alive' : state.ghostVote[p] ? 'ghost' : state.roles[p] === 'nova' && state.novaUsed ? 'gone' : 'used';
+  const LABEL = { alive: t.statusAlive, ghost: t.statusGhost, used: t.statusUsed, gone: t.statusGone };
+  const MARK = { alive: null, ghost: '👻', used: '🗳️', gone: '✖' };
+  const FILL = { alive: '', ghost: '#71717a', used: '#52525b', gone: '#3f3f46' };
+  const TEXT = { alive: 'text-emerald-300', ghost: 'text-indigo-300', used: 'text-zinc-400', gone: 'text-red-300' };
+  return (
+    <div className="space-y-3">
+      <div className="border border-indigo-500/30 bg-black/30 p-2">
+        <RoundTable
+          players={state.seats.map((p) => state.players[p])}
+          startsLabel=""
+          colors={state.seats.map((p) => (state.alive[p] ? PLAYER_COLORS[p] : FILL[status(p)]))}
+          dim={state.seats.map((p) => !state.alive[p])}
+          marks={state.seats.map((p) => MARK[status(p)])}
+          center={[t.seatMap, `${state.alive.filter(Boolean).length}/${state.players.length} ${t.statusAlive.toLowerCase()}`]}
+        />
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-indigo-200/80">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-400 inline-block" />{t.statusAlive}</span>
+        <span className="flex items-center gap-1.5">👻 {t.statusGhost}</span>
+        <span className="flex items-center gap-1.5">🗳️ {t.statusUsed}</span>
+        <span className="flex items-center gap-1.5">✖ {t.statusGone}</span>
+      </div>
+      <ul className="space-y-1">
+        {state.seats.map((p, k) => {
+          const st = status(p);
+          return (
+            <li key={p} className={`flex items-center gap-2 border px-2 py-1.5 text-sm ${st === 'alive' ? 'border-indigo-600/40' : 'border-zinc-700'}`}>
+              <span className="w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center text-black shrink-0" style={{ background: st === 'alive' ? PLAYER_COLORS[p] : FILL[st] }}>{k + 1}</span>
+              <span className="flex-1 min-w-0">
+                <span className={`block truncate ${st === 'alive' ? 'text-indigo-50' : 'text-zinc-400 line-through'}`}>{state.players[p]}</span>
+                <span className={`block text-xs ${TEXT[st]}`}>{MARK[st] ? `${MARK[st]} ` : ''}{LABEL[st]}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-[11px] text-indigo-300/60">{t.seatMapHint}</p>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, ScrollText, Volume2, VolumeX, Plus, Trash2, Users, EyeOff, Moon, Sun, Skull, Crosshair, Gavel, Pause, Play, RotateCcw, HelpCircle, Ghost, Megaphone, Lock, Shuffle } from 'lucide-react';
+import { ArrowLeft, BookOpen, ScrollText, Map as MapIcon, Volume2, VolumeX, Plus, Trash2, Users, EyeOff, Moon, Sun, Skull, Crosshair, Gavel, Pause, Play, RotateCcw, HelpCircle, Ghost, Megaphone, Lock, Shuffle } from 'lucide-react';
 import { useGamification } from '@/context/GamificationContext';
 import { pauseBgMusic, resumeBgMusic } from '@/lib/audio';
 import { RoundTable } from '@/components/games/party/RoundTable';
@@ -17,6 +17,7 @@ import {
   seatOf,
   lapStart,
   voteThreshold,
+  voteWeight,
   validateNightfallPlayers,
   shuffleSeats,
   TIMING,
@@ -32,10 +33,10 @@ import {
   type PublicEvent,
   type ChronEntry,
 } from '@/lib/party/nightfall';
-import { startNightMusic, stopNightMusic, sfxTick, sfxGlitch, sfxDeath, sfxMorning, sfxExecution, sfxBell, sfxVictory, buzz, isMuted, setMuted } from '@/lib/nightfallSound';
+import { startNightMusic, stopNightMusic, sfxTick, sfxGlitch, sfxDeath, sfxMorning, sfxExecution, sfxBell, sfxVictory, sfxNightfall, sfxDawn, buzz, isMuted, setMuted } from '@/lib/nightfallSound';
 import { RoleIcon } from '@/components/games/nightfall/RoleIcon';
 import { TEAM_COLOR } from '@/components/games/nightfall/palette';
-import { Overlay, RoleBook, RulesView, RoleHint } from '@/components/games/nightfall/Panels';
+import { Overlay, RoleBook, RulesView, RoleHint, SeatMap } from '@/components/games/nightfall/Panels';
 import { UI, reportLine, chronicleLine, type UIText } from '@/components/games/nightfall/texts';
 import { useTurnClock, useDayClock } from '@/components/games/nightfall/useClock';
 
@@ -69,7 +70,7 @@ function eventLine(e: PublicEvent, state: NfState, t: UIText): string | null {
     case 'shielded': return t.events.shielded(nm(e.player));
     case 'noExecution': return t.events.noExecution;
     case 'novaHit': return t.events.novaHit(nm(e.shooter), nm(e.target));
-    case 'novaMiss': return t.events.novaMiss(nm(e.shooter), nm(e.target));
+    case 'novaMiss': return t.events.novaMiss(nm(e.shooter), nm(e.target), e.died);
     case 'deaths': return e.players.length ? t.deathsSome(nameList(state, e.players)) : t.deathsNone;
     case 'saved': return t.events.saved(nm(e.target), e.by, e.what);
     case 'pyre': return t.events.pyre(nm(e.by), nm(e.target));
@@ -298,11 +299,16 @@ function HintButton({ t, onHint }: { t: UIText; onHint: () => void }) {
 function NightEnd({ state, dispatch, t }: { state: NfState; dispatch: (a: Action) => void; t: UIText }) {
   const onExpire = useCallback(() => {
     stopNightMusic();
-    if (state.lastNightDeaths.length) {
-      sfxDeath();
-      buzz([300, 150, 300]);
-    } else sfxMorning();
-    if (state.seatsBefore) window.setTimeout(() => sfxGlitch(), 1800);
+    // Everyone hears that the night is over, then what it brought
+    sfxDawn();
+    buzz([100, 80, 100]);
+    window.setTimeout(() => {
+      if (state.lastNightDeaths.length) {
+        sfxDeath();
+        buzz([300, 150, 300]);
+      } else sfxMorning();
+    }, 1500);
+    if (state.seatsBefore) window.setTimeout(() => sfxGlitch(), 3300);
     dispatch({ type: 'SHOW_MORNING' });
   }, [dispatch, state.lastNightDeaths.length, state.seatsBefore]);
   const { remaining } = useTurnClock(TIMING.phoneToCenter, onExpire);
@@ -390,7 +396,7 @@ function StatusList({ state, t }: { state: NfState; t: UIText }) {
 /** The table as it is now; when seats changed overnight, also how it was and who must move. */
 function SeatingView({ state, t }: { state: NfState; t: UIText }) {
   const names = (seats: number[]) => seats.map((p) => state.players[p]);
-  const colors = (seats: number[]) => seats.map((p) => PLAYER_COLORS[p]);
+  const colors = (seats: number[]) => seats.map((p) => (state.alive[p] ? PLAYER_COLORS[p] : '#52525b'));
   const before = state.seatsBefore;
   const pairs = state.morningEvents.flatMap((e) => (e.k === 'seats' ? e.pairs : []));
   const moved = state.seats.map((p, k) => (before && before[k] !== p ? '#fbbf24' : null));
@@ -477,8 +483,7 @@ function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Actio
     dispatch({ type: 'START_NOMINATIONS' });
   }, [dispatch]);
   const reset = () => { setMode(null); setNominator(null); setNominee(null); setVoters([]); setShooter(null); setTarget(null); };
-  const weight = (v: number) => (state.roles[v] === 'echo' && state.alive[v] && state.poisoned !== v ? 2 : 1);
-  const votes = voters.reduce((a, v) => a + weight(v), 0);
+  const votes = voters.reduce((a, v) => a + voteWeight(state, v), 0);
   const chip = (p: number, on: boolean, onClick: () => void, disabled = false, extra = '') => (
     <button key={p} disabled={disabled} onClick={onClick} className={`py-2 px-2 border text-sm truncate disabled:opacity-30 ${on ? 'text-black font-bold' : 'border-indigo-600/50 text-indigo-100'}`} style={on ? { background: PLAYER_COLORS[p], borderColor: PLAYER_COLORS[p] } : undefined}>
       {state.players[p]}{extra}
@@ -536,9 +541,9 @@ function DayScreen({ state, dispatch, t }: { state: NfState; dispatch: (a: Actio
           {mode === 'nominate' && (
             <div className="border border-indigo-400/40 bg-indigo-950/40 p-3 space-y-3">
               <p className="text-sm">{t.nominator}</p>
-              <div className="grid grid-cols-2 gap-1.5">{state.seats.map((p) => chip(p, nominator === p, () => setNominator(p), !state.alive[p] || state.nominations.some((x) => x.nominator === p)))}</div>
+              <div className="grid grid-cols-2 gap-1.5">{state.seats.map((p) => chip(p, nominator === p, () => { setNominator(p); if (nominee === p) setNominee(null); }, !state.alive[p] || state.nominations.some((x) => x.nominator === p)))}</div>
               <p className="text-sm">{t.nominee}</p>
-              <div className="grid grid-cols-2 gap-1.5">{state.seats.map((p) => chip(p, nominee === p, () => setNominee(p), !state.alive[p] || state.nominations.some((x) => x.nominee === p)))}</div>
+              <div className="grid grid-cols-2 gap-1.5">{state.seats.map((p) => chip(p, nominee === p, () => setNominee(p), !state.alive[p] || p === nominator || state.nominations.some((x) => x.nominee === p)))}</div>
               <p className="text-sm">{t.voters}</p>
               <div className="grid grid-cols-2 gap-1.5">
                 {state.seats.map((p) => chip(p, voters.includes(p), () => setVoters((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p])), !state.alive[p] && !state.ghostVote[p], !state.alive[p] ? ' 👻' : ''))}
@@ -585,7 +590,7 @@ export function NightfallDeception() {
   const navigate = useNavigate();
   const { addExp } = useGamification();
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
-  const [overlay, setOverlay] = useState<null | 'rules' | 'roles' | 'hint'>(null);
+  const [overlay, setOverlay] = useState<null | 'rules' | 'roles' | 'hint' | 'map'>(null);
   const [names, setNames] = useState<string[]>(() => (state.players.length ? state.players : Array(NF_MIN_PLAYERS).fill('')));
   const [muted, setMutedState] = useState(isMuted);
   const expGiven = useRef(false);
@@ -614,6 +619,21 @@ export function NightfallDeception() {
     if (state.phase === 'nightPass' || state.phase === 'night' || state.phase === 'nightEnd') startNightMusic();
     else if (state.phase !== 'morning') stopNightMusic();
   }, [state.phase]);
+  // Night falls — the game starts, or the day ends by timer, Skip or "End the day": same sound for everyone
+  const prevPhase = useRef(state.phase);
+  const nightfallTimer = useRef(0);
+  useEffect(() => {
+    const prev = prevPhase.current;
+    prevPhase.current = state.phase;
+    if (state.phase === 'nightPass' && (prev === 'day' || prev === 'seating')) {
+      const executed = prev === 'day' && state.events.some((e) => e.k === 'executed');
+      nightfallTimer.current = window.setTimeout(() => {
+        sfxNightfall();
+        buzz([200, 100, 200, 100, 200]);
+      }, executed ? 1100 : 0);
+    }
+  }, [state.phase, state.events]);
+  useEffect(() => () => window.clearTimeout(nightfallTimer.current), []);
   useEffect(() => {
     if (state.phase === 'final' && state.winner && !expGiven.current) {
       expGiven.current = true;
@@ -656,6 +676,7 @@ export function NightfallDeception() {
           <button onClick={exit} className="p-2 border border-indigo-500/40 text-indigo-300" aria-label={t.backToGames}><ArrowLeft className="w-5 h-5" /></button>
           <span className="text-indigo-200 text-[9px] sm:text-[10px] text-center" style={PIXEL}>{t.title}</span>
           <div className="flex gap-1.5">
+            {inGame && !privateTurn && <button onClick={() => setOverlay('map')} className="p-2 border-2 border-amber-400/80 bg-amber-500/10 text-amber-200" aria-label={t.seatMap} title={t.seatMap}><MapIcon className="w-5 h-5" /></button>}
             {!privateTurn && <button onClick={() => setOverlay('roles')} className="p-2 border border-indigo-500/40 text-indigo-300" aria-label={t.roleBook}><BookOpen className="w-5 h-5" /></button>}
             {!privateTurn && <button onClick={() => setOverlay('rules')} className="p-2 border border-indigo-500/40 text-indigo-300" aria-label={t.rules}><ScrollText className="w-5 h-5" /></button>}
             <button onClick={toggleMute} className="p-2 border border-indigo-500/40 text-indigo-300" aria-label={muted ? t.unmute : t.mute}>{muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}</button>
@@ -664,6 +685,7 @@ export function NightfallDeception() {
         <div className="w-full max-w-xl">{children}</div>
       </div>
       {overlay === 'roles' && <Overlay title={t.roleBook} onClose={() => setOverlay(null)} closeLabel={t.close}><RoleBook lang={lang} /></Overlay>}
+      {overlay === 'map' && inGame && !privateTurn && <Overlay title={t.seatMap} onClose={() => setOverlay(null)} closeLabel={t.close}><SeatMap state={state} /></Overlay>}
       {overlay === 'rules' && <Overlay title={t.rules} onClose={() => setOverlay(null)} closeLabel={t.close}><RulesView lang={lang} /></Overlay>}
       {overlay === 'hint' && hintPlayer !== null && (
         <Overlay title={t.roleHint} onClose={() => setOverlay(null)} closeLabel={t.close}>

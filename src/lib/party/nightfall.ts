@@ -67,8 +67,8 @@ export const BLIGHT_EXTRA_CURSED = 2;
 
 /** Seconds. Night/dawn turns use the "fast" tempo; day phases are long on purpose. */
 export const TIMING = {
-  nightTurn: 20,
-  nightTurnFirst: 30,
+  nightTurn: 30,
+  nightTurnFirst: 40,
   dawnTurn: 15,
   dawnTurnFirst: 25,
   minTurn: 5,
@@ -145,7 +145,7 @@ export type PublicEvent =
   | { k: 'shielded'; player: number }
   | { k: 'noExecution' }
   | { k: 'novaHit'; shooter: number; target: number }
-  | { k: 'novaMiss'; shooter: number; target: number }
+  | { k: 'novaMiss'; shooter: number; target: number; died: boolean }
   | { k: 'apex' };
 
 /** Everything that happened, in plain order, for the end-of-game chronicle. */
@@ -361,6 +361,16 @@ export function zombieAlive(state: NfState): boolean {
 
 export function aliveCount(state: NfState): number {
   return state.alive.filter(Boolean).length;
+}
+
+/** A crown holder's own ability is paused, day and night (Nova's shot, Echo's double vote, Apex…). */
+export function abilityWorks(state: NfState, p: number): boolean {
+  return state.crowned !== p && state.poisoned !== p;
+}
+
+/** Votes a raised hand is worth: a working, living Echo counts twice. */
+export function voteWeight(state: NfState, v: number): number {
+  return state.roles[v] === 'echo' && state.alive[v] && abilityWorks(state, v) ? 2 : 1;
 }
 
 /** More than half of the living players must vote for an execution. */
@@ -1083,11 +1093,10 @@ export function reducer(state: NfState, action: Action): NfState {
       if (state.phase !== 'day' || state.dayStage !== 'nomination') return state;
       const { nominator, nominee } = action;
       const voters = [...new Set(action.voters)];
-      if (!state.alive[nominator] || !state.alive[nominee]) return state;
+      if (!state.alive[nominator] || !state.alive[nominee] || nominator === nominee) return state;
       if (state.nominations.some((x) => x.nominator === nominator || x.nominee === nominee)) return state;
       if (!voters.every((v) => v >= 0 && v < n && (state.alive[v] || state.ghostVote[v]))) return state;
-      const weight = (v: number) => (state.roles[v] === 'echo' && state.alive[v] && state.poisoned !== v ? 2 : 1);
-      const votes = voters.reduce((acc, v) => acc + weight(v), 0);
+      const votes = voters.reduce((acc, v) => acc + voteWeight(state, v), 0);
       const pos = (v: number) => (seatOf(state, v) - seatOf(state, nominee) + n) % n;
       const lastVoter = voters.length ? voters.reduce((a, b) => (pos(b) > pos(a) ? b : a)) : null;
       const ghostVote = state.ghostVote.map((g, i) => (voters.includes(i) && !state.alive[i] ? false : g));
@@ -1105,18 +1114,21 @@ export function reducer(state: NfState, action: Action): NfState {
       const realNova = state.roles[shooter] === 'nova' && !state.novaUsed && state.crowned !== shooter;
       const hit = realNova && state.poisoned !== shooter && isBossNow(state, target);
       const chron: ChronItem = { k: 'nova', shooter, target, hit, real: realNova };
-      if (!hit) {
-        return { ...state, novaUsed: state.novaUsed || realNova, events: [...state.events, { k: 'novaMiss', shooter, target }], chronicle: dayChron(state, [chron]) };
+      if (!realNova) {
+        // A bluff: nothing happens, and the "shooter" is exposed as not being the Nova
+        return { ...state, events: [...state.events, { k: 'novaMiss', shooter, target, died: false }], chronicle: dayChron(state, [chron]) };
       }
-      const died = dayDeaths(state, [target]);
+      // The real Nova fires its one shot and dies at once — completely: no ghost vote
+      const died = dayDeaths(state, hit ? [target, shooter] : [shooter]);
       let next: NfState = {
         ...died.state,
+        ghostVote: died.state.ghostVote.map((g, i) => (i === shooter ? false : g)),
         novaUsed: true,
-        events: [...state.events, { k: 'novaHit', shooter, target }, ...died.events],
+        events: [...state.events, hit ? { k: 'novaHit', shooter, target } : { k: 'novaMiss', shooter, target, died: true }, ...died.events],
         chronicle: dayChron(state, [chron, ...died.chron]),
       };
       const win = checkWinner(next);
-      if (win) next = { ...next, ...win, winReason: win.winner === 'good' ? 'nbShot' : win.winReason, phase: 'final' };
+      if (win) next = { ...next, ...win, winReason: win.winner === 'good' && hit ? 'nbShot' : win.winReason, phase: 'final' };
       return next;
     }
     case 'END_DAY': {
@@ -1124,7 +1136,7 @@ export function reducer(state: NfState, action: Action): NfState {
       const valid = state.nominations.filter((x) => x.valid);
       const top = Math.max(0, ...valid.map((x) => x.votes));
       const leaders = valid.filter((x) => x.votes === top);
-      const apex = range(n).find((p) => state.alive[p] && state.roles[p] === 'apex' && sideOfPlayer(state, p) === 'good' && state.poisoned !== p);
+      const apex = range(n).find((p) => state.alive[p] && state.roles[p] === 'apex' && sideOfPlayer(state, p) === 'good' && abilityWorks(state, p));
       if (leaders.length >= 2 && aliveCount(state) === 3 && apex !== undefined) {
         return {
           ...state,

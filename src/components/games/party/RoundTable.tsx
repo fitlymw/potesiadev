@@ -16,6 +16,8 @@ export interface RoundTableProps {
   dim?: boolean[];
   /** Seats with a highlight ring (moved or selected). */
   ring?: (string | null)[];
+  /** A small marker next to each seat (e.g. a ghost for a dead player). */
+  marks?: (string | null)[];
   /** Two lines in the middle of the table (replaces the default legend). */
   center?: [string, string];
   /** Makes seats tappable. */
@@ -27,7 +29,7 @@ export interface RoundTableProps {
  * Round table seen from above. Seat 1 is at the bottom (nearest to whoever
  * holds the phone); "to the left" of a seated player is clockwise from above.
  */
-export function RoundTable({ players, startsLabel, colors, hideNames, dim, ring, center, onSeat, disabledSeats }: RoundTableProps) {
+export function RoundTable({ players, startsLabel, colors, hideNames, dim, ring, marks, center, onSeat, disabledSeats }: RoundTableProps) {
   const n = players.length;
   const c = 160;
   const angle = (k: number) => ((90 + (360 / n) * k) * Math.PI) / 180;
@@ -51,13 +53,14 @@ export function RoundTable({ players, startsLabel, colors, hideNames, dim, ring,
         // centred on the seat so they never run off the sides of the drawing
         const above = Math.sin(angle(k)) < -0.3;
         const [lx, ly] = [sx, above ? sy - 24 : sy + 31];
-        const fill = dim?.[k] ? '#52525b' : colors?.[k] ?? PLAYER_COLORS[k];
+        const fill = colors?.[k] ?? (dim?.[k] ? '#52525b' : PLAYER_COLORS[k]);
         const disabled = disabledSeats?.[k] ?? false;
         const seat = (
           <>
             {ring?.[k] && <circle cx={sx} cy={sy} r={22} fill="none" stroke={ring[k]!} strokeWidth={3} />}
             <circle cx={sx} cy={sy} r={17} fill={fill} opacity={disabled ? 0.35 : 1} stroke={k === 0 && !onSeat ? '#fff' : 'none'} strokeWidth={3} />
             <text x={sx} y={sy + 5} textAnchor="middle" fontSize="15" fontWeight="bold" fill="#0e0716">{k + 1}</text>
+            {marks?.[k] && <text x={sx + 15} y={sy - 10} textAnchor="middle" fontSize="13">{marks[k]}</text>}
             {!hideNames && <text x={lx} y={ly} textAnchor="middle" fontSize="12" fill={dim?.[k] ? '#a1a1aa' : '#f5f3ff'} textDecoration={dim?.[k] ? 'line-through' : undefined}>{short(name)}</text>}
           </>
         );

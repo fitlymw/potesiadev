@@ -249,13 +249,36 @@ export function sfxExecution(): void {
   tone(130, t, 0.9, { gain: 0.5, endFreq: 38 });
 }
 
-/** Discussion is over: everyone back to their seat. */
+/** Discussion is over: a hand bell rings several times — everyone back to their seat. */
 export function sfxBell(): void {
   const a = audio();
   if (!a) return;
   const t = a.ctx.currentTime;
-  tone(880, t, 1.4, { type: 'sine', gain: 0.2 });
-  tone(659.25, t + 0.45, 1.6, { type: 'sine', gain: 0.2 });
+  [880, 1046.5, 880, 1046.5, 880, 1046.5].forEach((f, i) => {
+    tone(f, t + i * 0.22, 0.9, { type: 'sine', gain: 0.24 });
+    tone(f * 2.76, t + i * 0.22, 0.4, { type: 'sine', gain: 0.05 });
+  });
+}
+
+/** The day is over and night falls: descending wind, a sinking horn and a deep gong. */
+export function sfxNightfall(): void {
+  const a = audio();
+  if (!a) return;
+  const t = a.ctx.currentTime;
+  noiseBurst(t, 3.2, { gain: 0.16, filter: 'bandpass', freq: 1600, endFreq: 220, q: 2 });
+  tone(392, t, 2.4, { type: 'triangle', gain: 0.13, endFreq: 147, attack: 0.15 });
+  tone(294, t + 0.3, 2.4, { type: 'triangle', gain: 0.09, endFreq: 110, attack: 0.15 });
+  for (const [ratio, g] of [[1, 0.3], [2.4, 0.12], [3.9, 0.06]] as const) tone(73.4 * ratio, t + 0.9, 4, { gain: g, attack: 0.01 });
+}
+
+/** The night is over and morning comes: a rising sunrise swell with bird chirps. */
+export function sfxDawn(): void {
+  const a = audio();
+  if (!a) return;
+  const t = a.ctx.currentTime;
+  tone(261.63, t, 2.2, { type: 'triangle', gain: 0.12, endFreq: 523.25, attack: 0.6 });
+  tone(392, t + 0.2, 2, { type: 'sine', gain: 0.08, endFreq: 783.99, attack: 0.6 });
+  [0.9, 1.05, 1.5, 1.62, 1.74].forEach((d, i) => tone(2600 + i * 180, t + d, 0.09, { type: 'sine', gain: 0.07, endFreq: 3600 + i * 150 }));
 }
 
 export function sfxVictory(side: 'good' | 'evil'): void {
