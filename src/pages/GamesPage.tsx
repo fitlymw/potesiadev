@@ -42,6 +42,14 @@ const GAMES: GameCard[] = [
     path: '/games/persona-core',
   },
   {
+    id: 'mind-reader',
+    title: 'Mind Reader',
+    description: 'Party game (4–8 players, 1 phone): how well do you know your friends?',
+    icon: getAssetUrl('/images/mind-reader-icon.svg'),
+    color: 'fuchsia',
+    path: '/games/mind-reader',
+  },
+  {
     id: 'matrix-reasoning',
     title: 'Matrix Reasoning',
     description: 'Adaptive IQ-style pattern reasoning test',
