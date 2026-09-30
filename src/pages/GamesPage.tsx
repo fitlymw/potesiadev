@@ -50,6 +50,14 @@ const GAMES: GameCard[] = [
     path: '/games/mind-reader',
   },
   {
+    id: 'nightfall',
+    title: 'Nightfall Deception',
+    description: 'Hidden-role party game (5–10 players, 1 phone) inspired by Blood on the Clocktower',
+    icon: getAssetUrl('/images/nightfall-icon.svg'),
+    color: 'indigo',
+    path: '/games/nightfall',
+  },
+  {
     id: 'emotion-impostor',
     title: 'Emotion Impostor',
     description: 'Party game (4–8 players, 1 phone): find who is faking the feeling',
