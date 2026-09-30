@@ -1,0 +1,69 @@
+{
+  "language": {
+    "title": "选择您的语言",
+    "subtitle": "选择您喜欢的语言以继续"
+  },
+  "landing": {
+    "welcome": "欢迎来到领域",
+    "tap_to_start": "点击开始",
+    "press_start": "按开始键",
+    "play_time": "游戏时间",
+    "status": "状态",
+    "ready": "准备就绪",
+    "max_level": "最高等级",
+    "legendary_hero": "🏆 传奇英雄 🏆",
+    "copyright": "© 2026 POTESIA™. 版权所有。"
+  },
+  "menu": {
+    "title": "主菜单",
+    "games": "游戏",
+    "about_me": "关于我",
+    "my_project": "我的项目",
+    "social_media": "社交媒体",
+    "academic_journal": "学术期刊",
+    "freelance": "自由职业",
+    "hp": "生命值",
+    "mp": "魔法值",
+    "copyright": "© 2026 POTESIA™. 版权所有。"
+  },
+  "about": {
+    "title": "关于我",
+    "character_stats": "角色属性",
+    "class": "职业",
+    "level": "等级",
+    "title_label": "称号",
+    "guild": "公会",
+    "ai_engineer": "人工智能工程师",
+    "scholar": "学者",
+    "potesia": "Potesia",
+    "greeting": "你好，欢迎来到我的页面！",
+    "bio_1": "我叫Fitly Tjong Mamuaya，是一名IT专业人士，毕业于萨特亚瓦卡纳基督教大学（UKSW）信息系统硕士专业。我的主要专长在于平面设计、审计与分析以及机器学习，尤其在计算机视觉方面有深入研究。",
+    "bio_2": "我在开发预测、预报、分类、物体检测以及深度人脸分析模型方面经验丰富，使用OpenCV进行各种项目的人脸情绪识别和交互分析。",
+    "bio_3": "我还熟练使用Photoshop、Premiere Pro、After Effects等平面设计工具来制作logo、UI/UX、动画等。",
+    "bio_4": "在攻读硕士学位期间，我发表了关于脑肿瘤检测的Scopus Q3期刊论文（ReViXNET50），并在iCAST 2025上进行了展示。这段经历训练了我剖析复杂问题、选择最高效解决方案以及量化评估最终结果的能力。",
+    "bio_5": "这种解决问题和适应环境的能力也通过担任管理员的工作经历以及积极参与各种校园展览和活动得到了实践磨练。",
+    "skills_title": "技能与能力",
+    "quote": "在未知中，每一个挑战都是画布。每一次发现都是升级。"
+  },
+  "project": {
+    "title": "我的项目",
+    "object_detection": "物体检测",
+    "face_attendance": "人脸考勤",
+    "car_counter": "AI车辆计数系统",
+    "hand_gesture": "手势控制界面",
+    "website_samples": "网站示例",
+    "website_samples_desc": "点击探索展示模板",
+    "data_viz": "数据分析师可视化系统",
+    "data_viz_desc": "上传Excel/CSV → 自动分析 → 可视化",
+    "showcase_title": "网站展示",
+    "showcase_desc": "选择设计风格进行预览",
+    "minimalist": "极简主义",
+    "minimalist_desc": "简洁与建筑感",
+    "modern": "现代",
+    "modern_desc": "企业与大胆",
+    "3d_experience": "3D体验",
+    "3d_desc": "未来感与沉浸式",
+    "close": "关闭"
+  }
+}
+

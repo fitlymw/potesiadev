@@ -1,0 +1,4 @@
+node_modules
+dist/
+# Original/unused media kept locally but not shipped or versioned
+media-archive/
