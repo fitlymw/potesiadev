@@ -9,13 +9,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
 
     <!--
-      Preload hints untuk asset CRITICAL saja (cepat).
-      Asset per-halaman diload nanti saat navigasi.
+      Preload hanya asset kecil yang langsung terlihat. Video landing & musik latar
+      di-stream oleh browser saat dipakai, jadi tidak di-preload di sini.
     -->
-    <link rel="preload" as="video" href="/potesiadev/images/Wisuda_old_retro.mp4" type="video/mp4">
-    <link rel="preload" as="image" href="/potesiadev/images/castle_retro.gif" type="image/gif">
-    <link rel="preload" as="fetch" href="/potesiadev/bg%20song/bg_song.wav" crossorigin>
-    <link rel="preload" as="fetch" href="/potesiadev/bg%20song/old_retro_games_click_sound_effect.wav" crossorigin>
+    <link rel="preload" as="image" href="/potesiadev/images/landing-poster.jpg">
+    <link rel="preload" as="image" href="/potesiadev/images/castle_retro.gif">
 
     <!--
       Inline CSS untuk mencegah white flash saat halaman pertama kali dibuka.
@@ -34,8 +32,8 @@
         min-height: 100vh;
       }
     </style>
-    <script type="module" crossorigin src="/potesiadev/assets/index-CTsuw6p0.js"></script>
-    <link rel="stylesheet" crossorigin href="/potesiadev/assets/index-97dmwiyb.css">
+    <script type="module" crossorigin src="/potesiadev/assets/index-LQR7af5Q.js"></script>
+    <link rel="stylesheet" crossorigin href="/potesiadev/assets/index-C-jenAyZ.css">
   </head>
   <body>
     <div id="root"></div>
