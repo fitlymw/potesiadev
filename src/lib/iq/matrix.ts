@@ -2,7 +2,7 @@
  * Procedural matrix-reasoning items (Raven-style), pure functions, no React.
  *
  * Each cell has four scalar attributes (shape, count, size, color) and a
- * "lines" overlay (bitmask of 4 line directions). Row rules follow the
+ * "lines" feature (bitmask of 4 orange bars on the cell edges). Row rules follow the
  * taxonomy of Carpenter, Just & Shell (1990): constant (whole matrix or per
  * row), progression, distribution-of-three, and addition / XOR for the line
  * overlay.
@@ -36,7 +36,7 @@ export interface Cell {
   count: number;
   size: number;
   color: number;
-  /** bit 0 horizontal, 1 vertical, 2 diagonal "\", 3 diagonal "/" */
+  /** Orange edge bars: bit 0 top, 1 right, 2 bottom, 3 left */
   lines: number;
 }
 
@@ -391,12 +391,12 @@ export function explainItem(item: MatrixItem): Localized[] {
     }
   }
   if (item.rules.lines === 'add') {
-    out.push({ en: 'The lines in column 3 = the lines of columns 1 and 2 combined.', id: 'Garis di kolom 3 = gabungan garis kolom 1 dan kolom 2.' });
+    out.push({ en: 'The orange edge bars in column 3 = the bars of columns 1 and 2 combined.', id: 'Garis tepi oranye di kolom 3 = gabungan garis tepi kolom 1 dan kolom 2.' });
   }
   if (item.rules.lines === 'xor') {
     out.push({
-      en: 'The lines in column 3 = lines that appear in only one of columns 1 and 2 (shared lines disappear).',
-      id: 'Garis di kolom 3 = garis yang hanya muncul di salah satu kolom 1 atau 2 (garis yang sama-sama muncul hilang).',
+      en: 'The orange edge bars in column 3 = bars that appear in only one of columns 1 and 2 (bars that appear in both disappear).',
+      id: 'Garis tepi oranye di kolom 3 = garis yang hanya muncul di salah satu kolom 1 atau 2 (garis yang muncul di keduanya hilang).',
     });
   }
   out.push({ en: 'Everything else stays the same.', id: 'Hal lainnya tetap sama.' });

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useGamification } from '@/context/GamificationContext';
 import { ArrowLeft, Brain, Timer, CheckCircle2, XCircle, RotateCcw, Grid3x3 } from 'lucide-react';
-import { generateItem, explainItem, type Cell, type MatrixItem } from '@/lib/iq/matrix';
+import { generateItem, explainItem, type MatrixItem } from '@/lib/iq/matrix';
+import { CellView } from '@/components/games/MatrixCell';
 import {
   nextLevel,
   summarize,
@@ -111,53 +112,6 @@ const UI = {
   },
 };
 
-// ==================== CELL RENDERING ====================
-const FILLS = ['#ffffff', '#c4c4c4', '#6e6e6e', '#141414'];
-const RADII = [9, 14, 19];
-const POSITIONS: [number, number][][] = [
-  [[50, 50]],
-  [[30, 50], [70, 50]],
-  [[50, 29], [29, 70], [71, 70]],
-  [[29, 29], [71, 29], [29, 71], [71, 71]],
-];
-const LINE_COORDS = [
-  [8, 50, 92, 50],
-  [50, 8, 50, 92],
-  [12, 12, 88, 88],
-  [88, 12, 12, 88],
-];
-
-function polygonPoints(sides: number, cx: number, cy: number, r: number) {
-  // Triangle & pentagon point up; square & hexagon sit flat
-  const offset = sides % 2 === 0 ? -90 + 180 / sides : -90;
-  return Array.from({ length: sides }, (_, i) => {
-    const a = ((offset + (360 / sides) * i) * Math.PI) / 180;
-    return `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
-  }).join(' ');
-}
-
-function CellView({ cell }: { cell: Cell }) {
-  const r = RADII[cell.size];
-  const fill = FILLS[cell.color];
-  return (
-    <svg viewBox="0 0 100 100" className="w-full h-full block" aria-hidden>
-      <rect x="0" y="0" width="100" height="100" fill="#efe9dc" />
-      {POSITIONS[cell.count].map(([cx, cy], i) =>
-        cell.shape === 4 ? (
-          <circle key={i} cx={cx} cy={cy} r={r * 0.88} fill={fill} stroke="#141414" strokeWidth={2.2} />
-        ) : (
-          <polygon key={i} points={polygonPoints(cell.shape + 3, cx, cy, r)} fill={fill} stroke="#141414" strokeWidth={2.2} strokeLinejoin="round" />
-        )
-      )}
-      {LINE_COORDS.map(([x1, y1, x2, y2], bit) =>
-        cell.lines & (1 << bit) ? (
-          <line key={bit} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#d9480f" strokeWidth={3} strokeLinecap="round" />
-        ) : null
-      )}
-    </svg>
-  );
-}
-
 function MatrixBoard({ item, reveal }: { item: MatrixItem; reveal: boolean }) {
   return (
     <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-emerald-900/40 border-2 border-emerald-500/40 w-full max-w-[340px] mx-auto">
@@ -188,7 +142,7 @@ function OptionsGrid({
   highlight?: { picked: number; correct: number };
 }) {
   return (
-    <div className="grid grid-cols-4 gap-2 w-full max-w-[420px] mx-auto">
+    <div className="grid grid-cols-4 gap-1.5 sm:gap-2 w-full max-w-[420px] mx-auto">
       {item.options.map((cell, i) => {
         const isCorrect = highlight && i === highlight.correct;
         const isWrongPick = highlight && i === highlight.picked && i !== highlight.correct;
@@ -197,7 +151,7 @@ function OptionsGrid({
             key={i}
             disabled={disabled}
             onClick={() => onPick(i)}
-            className={`relative p-1 border-2 transition-colors bg-black/40 ${
+            className={`relative p-0.5 sm:p-1 border-2 transition-colors bg-black/40 ${
               isCorrect ? 'border-emerald-400' : isWrongPick ? 'border-red-500' : 'border-emerald-700/50 hover:border-emerald-400'
             } disabled:cursor-default`}
           >
