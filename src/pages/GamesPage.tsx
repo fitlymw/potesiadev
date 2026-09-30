@@ -27,7 +27,7 @@ const GAMES: GameCard[] = [
   {
     id: 'mbti-oracle',
     title: "The Oracle's Tavern",
-    description: 'MBTI-60 Discover your RPG class!',
+    description: 'MBTI-64 Discover your RPG class!',
     // PERBAIKAN: Menggunakan nama file tanpa spasi
     icon: getAssetUrl('/images/mbti-icon.webp'),
     color: 'purple',

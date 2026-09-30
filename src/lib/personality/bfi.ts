@@ -81,19 +81,31 @@ export function scoreBfi(answers: number[]): BfiProfile {
 }
 
 /**
- * Nearest-prototype matching. Each archetype formula becomes a target vector in
+ * How far a z-score falls short of a formula target. High (+1) and Low (-1) are
+ * one-sided — being even more extreme than the target is not a mismatch —
+ * while Moderate (0) penalises deviation in either direction.
+ */
+function targetGap(z: number, target: number): number {
+  if (target > 0) return Math.max(0, target - z);
+  if (target < 0) return Math.max(0, z - target);
+  return Math.abs(z);
+}
+
+/**
+ * Nearest-prototype matching. Each archetype formula becomes a target in
  * z-space (High = +1, Low = -1, Moderate = 0); only the traits named in the
- * formula count. Distances are averaged per trait, so archetypes with longer
- * formulas are not favoured.
+ * formula count. Gaps are averaged per trait, so archetypes with longer
+ * formulas are not favoured; on equal distance the more specific formula wins.
  */
 export function matchArchetypes(profile: BfiProfile): ArchetypeMatch[] {
   return ARCHETYPES.map((archetype) => {
     const entries = Object.entries(archetype.targets) as [Trait, number][];
-    const squared = entries.reduce((acc, [trait, target]) => {
-      const z = Math.max(-2.5, Math.min(2.5, profile[trait].z));
-      return acc + (z - target) ** 2;
-    }, 0);
+    const squared = entries.reduce((acc, [trait, target]) => acc + targetGap(profile[trait].z, target) ** 2, 0);
     const distance = Math.sqrt(squared / entries.length);
     return { archetype, distance, similarity: Math.round(100 * Math.exp(-(distance ** 2) / 2)) };
-  }).sort((a, b) => a.distance - b.distance);
+  }).sort(
+    (a, b) =>
+      a.distance - b.distance ||
+      Object.keys(b.archetype.targets).length - Object.keys(a.archetype.targets).length
+  );
 }

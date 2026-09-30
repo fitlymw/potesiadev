@@ -31,12 +31,6 @@ const RetroAICameraPage = lazy(() => import('@/pages/RetroAICameraPage').then((m
 const PersonaCorePage = lazy(() => import('@/pages/PersonaCorePage').then((m) => ({ default: m.PersonaCorePage })));
 const ProtocolSlicePage = lazy(() => import('@/pages/ProtocolSlicePage').then((m) => ({ default: m.ProtocolSlicePage })));
 
-export const getAssetUrl = (path: string) => {
-  const base = '/potesiadev';
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${base}${cleanPath}`;
-};
-
 /** Halaman tanpa nav/footer (full-screen) */
 function Fullscreen({ children }: { children: ReactNode }) {
   return (

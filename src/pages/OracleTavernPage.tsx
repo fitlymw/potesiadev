@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import { MBTIOracleGame } from '@/components/games/MBTIOracleGame';
+import type { MbtiResult } from '@/lib/personality/mbti';
 
 // ==================== HELPER ====================
 /**
@@ -13,32 +14,11 @@ const getAssetUrl = (path: string) => {
   return `${base}${path.startsWith('/') ? path : '/' + path}`;
 };
 
-interface MBTIResultData {
-  type: string;
-  percentages: {
-    E: number;
-    I: number;
-    S: number;
-    N: number;
-    T: number;
-    F: number;
-    J: number;
-    P: number;
-  };
-  data: {
-    title: string;
-    core: string;
-    strengths: string[];
-    weaknesses: string[];
-    advice: string;
-  };
-}
-
 export function OracleTavernPage() {
   const navigate = useNavigate();
   const [showGame, setShowGame] = useState(false);
 
-  const handleGameComplete = (result: MBTIResultData) => {
+  const handleGameComplete = (result: MbtiResult) => {
     navigate('/games/oracle-tavern/result', { state: result });
   };
 
@@ -127,7 +107,7 @@ export function OracleTavernPage() {
             {/* Description */}
             <div className="mt-6 bg-hound-panel/50 border border-amber-500/20 p-4">
               <p className="text-white/60 text-center text-sm" style={{ fontFamily: 'Courier New, monospace' }}>
-                Discover your RPG class through ancient wisdom. Answer 60 questions to unveil your destiny.
+                Discover your RPG class through ancient wisdom. Answer 64 questions to unveil your destiny.
               </p>
             </div>
           </motion.div>

@@ -22,8 +22,19 @@ interface PageRouteWrapperProps {
 
 export function PageRouteWrapper({ children }: PageRouteWrapperProps) {
   const location = useLocation();
+  // Di-key per pathname: setiap rute mendapat state loader yang baru. Tanpa ini
+  // instance yang sama dipakai ulang antar-rute, halaman baru sempat dirender
+  // dengan isReady milik halaman lama, dan AnimatePresence bisa tersangkut.
+  return (
+    <RouteGate key={location.pathname} pathname={location.pathname}>
+      {children}
+    </RouteGate>
+  );
+}
+
+function RouteGate({ pathname, children }: PageRouteWrapperProps & { pathname: string }) {
   // Halaman yang asset-nya sudah pernah dimuat langsung tampil tanpa loader
-  const [isReady, setIsReady] = useState(() => isPageReady(location.pathname));
+  const [isReady, setIsReady] = useState(() => isPageReady(pathname));
   const [progress, setProgress] = useState<PreloadProgress>({
     loaded: 0,
     total: 1,
@@ -33,18 +44,13 @@ export function PageRouteWrapper({ children }: PageRouteWrapperProps) {
   });
   const [messageIndex, setMessageIndex] = useState(0);
 
-  // Preload assets on mount and pathname change
+  // Preload asset halaman ini (sekali per mount, karena komponen di-key per rute)
   useEffect(() => {
-    if (isPageReady(location.pathname)) {
-      setIsReady(true);
-      return;
-    }
-
+    if (isPageReady(pathname)) return;
     let cancelled = false;
-    setIsReady(false);
 
     // preloadPageAssets tidak pernah reject dan dibatasi waktu tunggu maksimum
-    preloadPageAssets(location.pathname, (p) => {
+    preloadPageAssets(pathname, (p) => {
       if (!cancelled) setProgress(p);
     }).then(() => {
       if (!cancelled) setIsReady(true);
@@ -53,7 +59,7 @@ export function PageRouteWrapper({ children }: PageRouteWrapperProps) {
     return () => {
       cancelled = true;
     };
-  }, [location.pathname]);
+  }, [pathname]);
 
   // Cycle loading messages
   useEffect(() => {

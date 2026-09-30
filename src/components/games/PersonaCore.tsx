@@ -209,7 +209,7 @@ function RadarChart({ values }: { values: Record<Trait, number> }) {
   const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
 
   return (
-    <svg viewBox="0 0 140 140" className="w-full h-full max-h-72">
+    <svg viewBox="-12 -12 164 164" className="w-full h-full max-h-72">
       {[20, 40, 60, 80, 100].map(r => <circle key={r} cx={center} cy={center} r={(r/100)*radius} fill="none" stroke="rgba(6,182,212,0.2)" strokeWidth="0.5" />)}
       {labels.map((_, i) => { const p = getPoint(i, 100); return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="rgba(6,182,212,0.3)" strokeWidth="0.5" />; })}
       {labels.map((label, i) => { const p = getPoint(i, 115); return <text key={label} x={p.x} y={p.y} fill="#06b6d4" fontSize="8" textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">{label}</text>; })}

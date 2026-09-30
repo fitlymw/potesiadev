@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Sparkles, RefreshCw, Trophy, Crown, Swords, Shield } from 'lucide-react';
 import { useAudio } from '@/hooks/useAudio';
 import { useEffect } from 'react';
+import { MBTI_TYPES } from '@/data/mbti';
+import { loadOracleResult, type MbtiResult } from '@/lib/personality/mbti';
 
 // ==================== HELPER ====================
 /**
@@ -13,51 +15,47 @@ const getAssetUrl = (path: string) => {
   return `${base}${path.startsWith('/') ? path : '/' + path}`;
 };
 
-interface MBTIResultData {
-  type: string;
-  percentages: {
-    E: number;
-    I: number;
-    S: number;
-    N: number;
-    T: number;
-    F: number;
-    J: number;
-    P: number;
-  };
-  data: {
-    title: string;
-    core: string;
-    strengths: string[];
-    weaknesses: string[];
-    advice: string;
-  };
-}
-
-const MBTI_DATA: Record<string, { title: string; core: string; strengths: string[]; weaknesses: string[]; advice: string }> = {
-  'INTJ': { title: 'The Architect', core: 'Imaginative and strategic thinkers, with a plan for everything.', strengths: ['Strategic Thinking', 'Independent Mind', 'High Standards', 'Analytical', 'Driven'], weaknesses: ['Overly Critical', 'Impatient', 'Emotionally Reserved', 'Perfectionist'], advice: 'Trust your strategic vision, but remember to value the perspectives of others. Your analytical mind is your greatest gift, but compassion is your missing piece.' },
-  'INTP': { title: 'The Logician', core: 'Innovative inventors with an unquenchable thirst for knowledge.', strengths: ['Analytical Thinking', 'Creativity', 'Open-Minded', 'Objective', 'Theoretical'], weaknesses: ['Socially Awkward', 'Absent-Minded', 'Difficulty Expressing', 'Procrastination'], advice: 'Share your brilliant ideas with the world. Your theoretical insights can change reality, but only if you bring them to life.' },
-  'ENTJ': { title: 'The Commander', core: 'Bold, imaginative, and strong-willed leaders, always finding a way forward.', strengths: ['Natural Leader', 'Efficient', 'Strategic', 'Confident', 'Decisive'], weaknesses: ['Intolerant', 'Impatient', 'Aggressive', 'Arrogant'], advice: 'Lead with empathy as well as efficiency. Your commanding presence inspires, but compassion creates true loyalty.' },
-  'ENTP': { title: 'The Debater', core: 'Smart and curious thinkers who cannot resist an intellectual challenge.', strengths: ['Quick Thinker', 'Inventive', 'Enthusiastic', 'Verbal Skill', 'Creative'], weaknesses: ['Argumentative', 'Disorganized', 'Insensitive', 'Easily Bored'], advice: 'Channel your brilliant debates into constructive dialogue. Your ideas are valuable, but timing matters as much as content.' },
-  'INFJ': { title: 'The Advocate', core: 'Quiet and mystical, yet very inspiring and tireless idealists.', strengths: ['Insightful', 'Principled', 'Passionate', 'Altruistic', 'Creative'], weaknesses: ['Sensitive', 'Perfectionist', 'Reserved', 'Hard to Please'], advice: 'Your vision of a better world is needed. Protect your energy while changing the world, and remember to nurture yourself.' },
-  'INFP': { title: 'The Mediator', core: 'Poetic, kind and altruistic people, always eager to help a good cause.', strengths: ['Empathetic', 'Creative', 'Idealistic', 'Passionate', 'Curious'], weaknesses: ['Self-Critical', 'Overly Idealistic', 'Unpractical', 'Emotionally Vulnerable'], advice: 'Your ideals are beautiful, but the world needs your grounded action too. Balance dreams with practical steps.' },
-  'ENFJ': { title: 'The Protagonist', core: 'Charismatic and inspiring leaders, able to mesmerize their listeners.', strengths: ['Charismatic', 'Reliable', 'Natural Leader', 'Generous', 'Cooperative'], weaknesses: ['Overly Idealistic', 'Overbearing', 'Self-Sacrificing', 'Manipulative'], advice: 'Your ability to inspire is legendary. Lead others to their own truth rather than your vision of it.' },
-  'ENFP': { title: 'The Campaigner', core: 'Enthusiastic and creative free spirits, who can always find a reason to smile.', strengths: ['Fun', 'Enthusiastic', 'Spontaneous', 'Inventive', 'Affectionate'], weaknesses: ['Unfocused', 'Overly Optimistic', 'Poor Routine', 'Difficulty Concentrating'], advice: 'Your energy lights up every room. Channel your boundless enthusiasm into projects that truly matter.' },
-  'ISTJ': { title: 'The Logistician', core: 'Practical and fact-minded individuals, whose reliability cannot be doubted.', strengths: ['Reliable', 'Practical', 'Honest', 'Detail-Oriented', 'Responsible'], weaknesses: ['Inflexible', 'Reserved', 'Judgmental', 'By the Book'], advice: 'Your reliability is your strength. Be open to new approaches while maintaining your valuable attention to detail.' },
-  'ISFJ': { title: 'The Defender', core: 'Very dedicated and warm protectors, always ready to defend their loved ones.', strengths: ['Devoted', 'Warm', 'Reliable', 'Observant', 'Caring'], weaknesses: ['Self-Sacrificing', 'Repressed', 'Overburdened', 'Passive'], advice: 'You are the backbone of everyone around you. Let others support you as much as you support them.' },
-  'ESTJ': { title: 'The Executive', core: 'Excellent administrators, unsurpassed at managing things — or people.', strengths: ['Organized', 'Direct', 'Confident', 'Responsible', 'Traditional'], weaknesses: ['Inflexible', 'Uncompromising', 'Impatient', 'Insensitive'], advice: 'Your leadership keeps the world running. Remember that not everyone shares your need for structure and efficiency.' },
-  'ESFJ': { title: 'The Consul', core: 'Extraordinarily caring, social and popular people, always eager to help.', strengths: ['Social', 'Cooperative', 'Practical', 'Empathetic', 'Reliable'], weaknesses: ['Overly Caring', 'Insecure', 'Self-Sacrificing', 'Approval-Seeking'], advice: 'Your care for others is beautiful. Trust that you are enough exactly as you are, without seeking external validation.' },
-  'ISTP': { title: 'The Virtuoso', core: 'Bold and practical experimenters, masters of all kinds of tools.', strengths: ['Practical', 'Spontaneous', 'Logical', 'Handy', 'Versatile'], weaknesses: ['Reserved', 'Stubborn', 'Insensitive', 'Risk-Taking'], advice: 'Your hands-on approach solves problems others cannot see. Balance your love of action with reflection.' },
-  'ISFP': { title: 'The Adventurer', core: 'Flexible and charming artists, always ready to explore and experience something new.', strengths: ['Artistic', 'Adaptable', 'Charming', 'Observant', 'Enthusiastic'], weaknesses: ['Unpredictable', 'Indecisive', 'Easily Stressed', 'Self-Isolating'], advice: 'Your artistic spirit brings beauty to the world. Share your unique perspective, even when it feels vulnerable.' },
-  'ESTP': { title: 'The Entrepreneur', core: 'Smart, energetic and very perceptive people, who truly enjoy living on the edge.', strengths: ['Energetic', 'Pragmatic', 'Risk-Taker', 'Social', 'Direct'], weaknesses: ['Impatient', 'Unstructured', 'Insensitive', 'Dislike Commitment'], advice: 'Your energy and courage inspire others. Channel your boldness into meaningful pursuits that create lasting impact.' },
-  'ESFP': { title: 'The Entertainer', core: 'Spontaneous, energetic and enthusiastic people — life is never boring around them.', strengths: ['Fun', 'Enthusiastic', 'Spontaneous', 'Observant', 'Performing'], weaknesses: ['Unfocused', 'Sensitive', 'Unstructured', 'Attention-Seeking'], advice: 'You bring joy wherever you go. Let your performances inspire others while honoring your own emotional journey.' },
+const TEXT = {
+  en: {
+    noResult: 'No result data found',
+    backToGames: 'BACK TO GAMES',
+    revealed: 'Your Destiny Has Been Revealed',
+    avatar: 'SPIRIT AVATAR',
+    avatarSub: 'Your mystical representation',
+    core: 'CORE PERSONALITY',
+    attributes: 'ATTRIBUTES',
+    challenges: 'CHALLENGES',
+    wisdom: "THE ORACLE'S WISDOM",
+    again: 'CONSULT AGAIN',
+    balanced: 'BALANCED',
+    balancedNote: 'BALANCED means your answers leaned only slightly (or not at all) to one side, so that letter is a weak preference.',
+    labels: { I: 'Introvert', E: 'Extrovert', S: 'Sensing', N: 'Intuition', T: 'Thinking', F: 'Feeling', J: 'Judging', P: 'Perceiving' },
+  },
+  id: {
+    noResult: 'Data hasil tidak ditemukan',
+    backToGames: 'KEMBALI KE GAMES',
+    revealed: 'Takdirmu Telah Terungkap',
+    avatar: 'AVATAR ROH',
+    avatarSub: 'Representasi mistismu',
+    core: 'KEPRIBADIAN INTI',
+    attributes: 'KEKUATAN',
+    challenges: 'TANTANGAN',
+    wisdom: 'KEBIJAKSANAAN SANG ORACLE',
+    again: 'KONSULTASI LAGI',
+    balanced: 'SEIMBANG',
+    balancedNote: 'SEIMBANG berarti jawabanmu hanya sedikit (atau sama sekali tidak) condong ke salah satu sisi, jadi huruf tersebut adalah preferensi yang lemah.',
+    labels: { I: 'Introvert', E: 'Ekstrovert', S: 'Sensing', N: 'Intuisi', T: 'Thinking', F: 'Feeling', J: 'Judging', P: 'Perceiving' },
+  },
 };
 
 export function OracleResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const resultData = location.state as MBTIResultData | undefined;
+  // Router state saat datang dari game; sessionStorage saat halaman di-refresh
+  const resultData = (location.state as MbtiResult | null) ?? loadOracleResult();
+  const lang = resultData?.language ?? 'en';
+  const t = TEXT[lang];
   
   // PERBAIKAN: Menggunakan getAssetUrl dan nama file snake_case
   const { play: playWinner } = useAudio(getAssetUrl('/bg song/winner_sound.wav'), { volume: 0.6 });
@@ -70,19 +68,28 @@ export function OracleResultPage() {
     return (
       <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
         <div className="text-center">
-          <p className="text-white mb-4">No result data found</p>
+          <p className="text-white mb-4">{t.noResult}</p>
           <button 
             onClick={() => navigate('/games')}
             className="px-6 py-3 bg-amber-500 text-black font-bold"
           >
-            Back to Games
+            {t.backToGames}
           </button>
         </div>
       </div>
     );
   }
 
-  const { type, percentages, data = MBTI_DATA[type] || MBTI_DATA['INTJ'] } = resultData;
+  const { type, percentages } = resultData;
+  const balanced = resultData.balanced ?? { EI: false, SN: false, TF: false, JP: false };
+  const info = MBTI_TYPES[type] ?? MBTI_TYPES.INTJ;
+  const data = {
+    title: info.title[lang],
+    core: info.core[lang],
+    strengths: info.strengths[lang],
+    weaknesses: info.weaknesses[lang],
+    advice: info.advice[lang],
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden crt-flicker">
@@ -166,7 +173,7 @@ export function OracleResultPage() {
             <p className="text-2xl md:text-3xl text-purple-400" style={{ fontFamily: 'Courier New, monospace' }}>
               {data.title}
             </p>
-            <p className="text-white/60 mt-2">Your Destiny Has Been Revealed</p>
+            <p className="text-white/60 mt-2">{t.revealed}</p>
           </motion.div>
 
           <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -193,9 +200,9 @@ export function OracleResultPage() {
               
               <div className="text-center mt-3">
                 <p className="text-amber-400 text-sm" style={{ fontFamily: '"Press Start 2P", cursive' }}>
-                  SPIRIT AVATAR
+                  {t.avatar}
                 </p>
-                <p className="text-white/50 text-xs mt-1">Your mystical representation</p>
+                <p className="text-white/50 text-xs mt-1">{t.avatarSub}</p>
               </div>
             </motion.div>
 
@@ -208,32 +215,35 @@ export function OracleResultPage() {
               >
                 <TraitBarWithIcon 
                   icon={<span className="text-blue-400">🌙</span>}
-                  leftLabel="Introvert" 
-                  rightLabel="Extrovert" 
+                  leftLabel={t.labels.I}
+                  rightLabel={t.labels.E}
+                  balancedLabel={balanced.EI ? t.balanced : undefined}
                   leftValue={percentages.I} 
-                  rightValue={percentages.E}
                 />
                 <TraitBarWithIcon 
                   icon={<span className="text-green-400">👁️</span>}
-                  leftLabel="Sensing" 
-                  rightLabel="Intuition" 
+                  leftLabel={t.labels.S}
+                  rightLabel={t.labels.N}
+                  balancedLabel={balanced.SN ? t.balanced : undefined}
                   leftValue={percentages.S} 
-                  rightValue={percentages.N}
                 />
                 <TraitBarWithIcon 
                   icon={<span className="text-red-400">❤️</span>}
-                  leftLabel="Thinking" 
-                  rightLabel="Feeling" 
+                  leftLabel={t.labels.T}
+                  rightLabel={t.labels.F}
+                  balancedLabel={balanced.TF ? t.balanced : undefined}
                   leftValue={percentages.T} 
-                  rightValue={percentages.F}
                 />
                 <TraitBarWithIcon 
                   icon={<span className="text-purple-400">⚖️</span>}
-                  leftLabel="Judging" 
-                  rightLabel="Perceiving" 
+                  leftLabel={t.labels.J}
+                  rightLabel={t.labels.P}
+                  balancedLabel={balanced.JP ? t.balanced : undefined}
                   leftValue={percentages.J} 
-                  rightValue={percentages.P}
                 />
+                {Object.values(balanced).some(Boolean) && (
+                  <p className="text-amber-300/60 text-xs">{t.balancedNote}</p>
+                )}
               </motion.div>
 
               <motion.div
@@ -244,7 +254,7 @@ export function OracleResultPage() {
               >
                 <h3 className="text-purple-400 text-sm mb-2 flex items-center gap-2" style={{ fontFamily: '"Press Start 2P", cursive' }}>
                   <Sparkles className="w-4 h-4" />
-                  CORE PERSONALITY
+                  {t.core}
                 </h3>
                 <p className="text-white/80 text-sm">{data.core}</p>
               </motion.div>
@@ -261,7 +271,7 @@ export function OracleResultPage() {
               <div className="absolute -top-3 left-4 bg-hound-panel px-3">
                 <h4 className="text-green-400 text-sm flex items-center gap-2" style={{ fontFamily: '"Press Start 2P", cursive' }}>
                   <Trophy className="w-4 h-4" />
-                  ATTRIBUTES
+                  {t.attributes}
                 </h4>
               </div>
               <div className="mt-4 space-y-2">
@@ -278,7 +288,7 @@ export function OracleResultPage() {
               <div className="absolute -top-3 left-4 bg-hound-panel px-3">
                 <h4 className="text-red-400 text-sm flex items-center gap-2" style={{ fontFamily: '"Press Start 2P", cursive' }}>
                   <Shield className="w-4 h-4" />
-                  CHALLENGES
+                  {t.challenges}
                 </h4>
               </div>
               <div className="mt-4 space-y-2">
@@ -307,7 +317,7 @@ export function OracleResultPage() {
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
                 <span className="text-purple-400 text-sm" style={{ fontFamily: '"Press Start 2P", cursive' }}>
-                  THE ORACLE'S WISDOM
+                  {t.wisdom}
                 </span>
                 <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
               </div>
@@ -333,7 +343,7 @@ export function OracleResultPage() {
               style={{ fontFamily: '"Press Start 2P", cursive' }}
             >
               <RefreshCw className="w-5 h-5" />
-              CONSULT AGAIN
+              {t.again}
             </motion.button>
             
             <motion.button
@@ -344,7 +354,7 @@ export function OracleResultPage() {
               style={{ fontFamily: '"Press Start 2P", cursive' }}
             >
               <ArrowLeft className="w-5 h-5" />
-              BACK TO GAMES
+              {t.backToGames}
             </motion.button>
           </motion.div>
         </div>
@@ -362,22 +372,26 @@ function TraitBarWithIcon({
   icon, 
   leftLabel, 
   rightLabel, 
-  leftValue, 
-  rightValue 
+  leftValue,
+  balancedLabel,
 }: { 
   icon: React.ReactNode; 
   leftLabel: string; 
   rightLabel: string; 
-  leftValue: number; 
-  rightValue: number;
+  leftValue: number;
+  balancedLabel?: string;
 }) {
   const displayLeft = Math.max(0, Math.min(100, Math.round(leftValue)));
-  const displayRight = Math.max(0, Math.min(100, Math.round(rightValue)));
+  // Kedua sisi selalu berjumlah 100% setelah pembulatan
+  const displayRight = 100 - displayLeft;
   
   return (
     <div className="relative">
       <div className="flex justify-between items-center text-xs text-white/60 mb-1">
         <span className="flex items-center gap-1">{icon} {leftLabel}</span>
+        {balancedLabel && (
+          <span className="px-2 border border-amber-400/50 text-amber-300 text-[10px] tracking-wider">{balancedLabel}</span>
+        )}
         <span>{rightLabel} {icon}</span>
       </div>
       <div className="h-8 bg-black/50 border-2 border-white/20 flex overflow-hidden">
