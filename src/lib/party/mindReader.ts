@@ -1,10 +1,13 @@
 /**
  * Mind Reader — pass-the-phone perspective-taking game (pure logic, no React).
  *
- * Each round one player is the Target: they rate themselves on a few 1–10
- * questions and predict which friend knows them best. The phone is then passed
- * to every other player, who guesses the Target's answers in secret. Answers
- * and guesses are revealed together on the "table" screen.
+ * The entered names are shuffled into a random seating order around a round
+ * table. Seat 1 is the first Target; each round one player is the Target: they
+ * rate themselves on a few 1–10 questions and predict which friend knows them
+ * best. The phone is then passed to the left (seat order) to every other
+ * player, who guesses the Target's answers in secret. Answers and guesses are
+ * revealed together on the "table" screen, and the Target role moves one seat
+ * to the left until everyone has had a turn.
  *
  * Scoring per guess (err = |answer − guess|):
  *   accuracy  = max(0, 10 − 3·err)        → 10, 7, 4, 1, 0 …
@@ -24,7 +27,7 @@ const INSIGHT_BONUS = 5;
 export const MAX_POINTS_PER_GUESS = 10 + INSIGHT_BONUS;
 export const BEST_KNOWER_BONUS = 10;
 
-export type Phase = 'howto' | 'setup' | 'pass' | 'target' | 'guess' | 'reveal' | 'final';
+export type Phase = 'howto' | 'setup' | 'seating' | 'pass' | 'target' | 'guess' | 'reveal' | 'final';
 export type Lang = 'en' | 'id';
 
 export interface Round {
@@ -41,6 +44,7 @@ export interface Round {
 export interface GameState {
   phase: Phase;
   lang: Lang;
+  /** Names in seating order (seat 1 first, then to the left). */
   players: string[];
   rounds: Round[];
   /** Position in the guesser order of the current round. */
@@ -61,8 +65,9 @@ export type Action =
   | { type: 'SET_LANG'; lang: Lang }
   | { type: 'SHOW_SETUP' }
   | { type: 'SHOW_HOWTO' }
-  /** keepHistory: remember questions from the previous game so a rematch avoids them. */
-  | { type: 'START'; players: string[]; questionIds: string[]; keepHistory?: boolean }
+  /** Seat the players (already shuffled by the caller) and show the round table. */
+  | { type: 'ARRANGE'; players: string[] }
+  | { type: 'START'; questionIds: string[] }
   | { type: 'CONFIRM_PASS' }
   | { type: 'SUBMIT_TARGET'; answers: number[]; predictedBest: number }
   | { type: 'SUBMIT_GUESS'; answers: number[] }
@@ -98,6 +103,16 @@ export function validatePlayers(names: string[]): 'tooFew' | 'tooMany' | 'empty'
   return null;
 }
 
+/** Random seating order for the entered names. */
+export function shuffleSeats(names: string[], random: () => number = Math.random): string[] {
+  const seats = names.map((n) => n.trim());
+  for (let i = seats.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [seats[i], seats[j]] = [seats[j], seats[i]];
+  }
+  return seats;
+}
+
 /** Pick `count` unused question ids; recycles the bank once it runs out. */
 export function pickQuestions(allIds: string[], used: string[], count: number, random: () => number = Math.random): string[] {
   let pool = allIds.filter((id) => !used.includes(id));
@@ -127,16 +142,19 @@ export function reducer(state: GameState, action: Action): GameState {
       return { ...state, phase: 'setup' };
     case 'SHOW_HOWTO':
       return { ...state, phase: 'howto' };
-    case 'START': {
+    case 'ARRANGE': {
       if (validatePlayers(action.players) !== null) return state;
-      const players = action.players.map((n) => n.trim());
+      return { ...state, phase: 'seating', players: action.players.map((n) => n.trim()), rounds: [], turn: 0 };
+    }
+    case 'START': {
+      if (state.phase !== 'seating' || validatePlayers(state.players) !== null) return state;
       return {
         ...state,
         phase: 'pass',
-        players,
         rounds: [newRound(0, action.questionIds)],
         turn: 0,
-        usedQuestionIds: [...(action.keepHistory ? state.usedQuestionIds : []), ...action.questionIds],
+        // Keep earlier games' questions so a rematch avoids them (the bank recycles when exhausted)
+        usedQuestionIds: [...state.usedQuestionIds, ...action.questionIds],
       };
     }
     case 'CONFIRM_PASS': {

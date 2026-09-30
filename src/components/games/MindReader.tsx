@@ -11,6 +11,7 @@ import {
   guessersOf,
   pendingPlayer,
   pickQuestions,
+  shuffleSeats,
   roundResult,
   finalStats,
   validatePlayers,
@@ -39,10 +40,11 @@ const UI = {
     howTitle: 'How to play',
     howIntro: `A party game for ${MIN_PLAYERS}–${MAX_PLAYERS} players with one phone that gets passed around.`,
     steps: [
-      `Each round, one player is the Target. In secret, the Target rates themselves honestly on ${QUESTIONS_PER_ROUND} questions (scale ${SCALE_MIN}–${SCALE_MAX}), then picks the friend they think knows them best.`,
-      'The phone is passed to every other player, one at a time. Each one guesses the Target’s answers in secret — no talking, no peeking.',
+      'Enter everyone’s name. The app shuffles you into a random seating order — sit around the table as shown on the round-table screen.',
+      `Seat 1 is the first Target. In secret, the Target rates themselves honestly on ${QUESTIONS_PER_ROUND} questions (scale ${SCALE_MIN}–${SCALE_MAX}), then picks the friend they think knows them best.`,
+      'The phone is always passed to the left. One by one, every other player guesses the Target’s answers in secret — no talking, no peeking.',
       'When everyone has guessed, put the phone in the middle of the table. The Target’s real answers and all guesses are revealed together — now you can discuss!',
-      'Everyone takes a turn as the Target. After the last round you see the final ranking and a map of who knows whom best.',
+      'Next round, the Target role moves one seat to the left. When everyone has been the Target once, you see the final ranking and a map of who knows whom best.',
     ],
     pointsTitle: 'Points per guess',
     points: [
@@ -68,7 +70,15 @@ const UI = {
       empty: 'Fill in every name (or remove empty rows).',
       duplicate: 'Each name must be different.',
     },
-    start: 'START GAME',
+    start: 'SHUFFLE SEATS',
+    seatingTitle: 'Round table',
+    seatingIntro: (first: string) => `Sit in a circle in the order below. The game starts with ${first}, then continues to the left of ${first}.`,
+    seatingView: 'Seen from above the table',
+    seatingStarts: 'starts',
+    seatingLeftOf: (name: string, prev: string) => `${name} — to the left of ${prev}`,
+    seatingPass: 'The phone is always passed to the player on your left.',
+    reshuffle: 'SHUFFLE AGAIN',
+    seated: 'WE’RE SEATED — START',
     howAgain: 'How to play',
     round: (r: number, total: number) => `Round ${r} of ${total}`,
     passTo: 'Hand the phone to',
@@ -114,10 +124,11 @@ const UI = {
     howTitle: 'Cara bermain',
     howIntro: `Party game untuk ${MIN_PLAYERS}–${MAX_PLAYERS} pemain dengan satu HP yang dioper bergantian.`,
     steps: [
-      `Setiap ronde, satu pemain menjadi Target. Secara rahasia, Target menilai dirinya sendiri dengan jujur pada ${QUESTIONS_PER_ROUND} pertanyaan (skala ${SCALE_MIN}–${SCALE_MAX}), lalu memilih teman yang menurutnya paling mengenal dirinya.`,
-      'HP dioper ke setiap pemain lain, satu per satu. Masing-masing menebak jawaban Target secara rahasia — tanpa diskusi dan tanpa mengintip.',
+      'Masukkan nama semua pemain. Aplikasi akan mengacak urutan duduk — duduklah melingkar sesuai gambar di layar meja bundar.',
+      `Pemain di kursi nomor 1 menjadi Target pertama. Secara rahasia, Target menilai dirinya sendiri dengan jujur pada ${QUESTIONS_PER_ROUND} pertanyaan (skala ${SCALE_MIN}–${SCALE_MAX}), lalu memilih teman yang menurutnya paling mengenal dirinya.`,
+      'HP selalu dioper ke pemain di sebelah kiri. Satu per satu, pemain lain menebak jawaban Target secara rahasia — tanpa diskusi dan tanpa mengintip.',
       'Setelah semua menebak, taruh HP di tengah meja. Jawaban asli Target dan semua tebakan dibuka bersama — sekarang boleh diskusi!',
-      'Semua pemain bergiliran menjadi Target. Setelah ronde terakhir, kalian melihat peringkat akhir dan peta siapa yang paling mengenal siapa.',
+      'Di ronde berikutnya, peran Target pindah satu kursi ke kiri. Setelah semua pemain pernah menjadi Target, kalian melihat peringkat akhir dan peta siapa yang paling mengenal siapa.',
     ],
     pointsTitle: 'Poin per tebakan',
     points: [
@@ -143,7 +154,15 @@ const UI = {
       empty: 'Isi semua nama (atau hapus baris yang kosong).',
       duplicate: 'Setiap nama harus berbeda.',
     },
-    start: 'MULAI PERMAINAN',
+    start: 'ACAK TEMPAT DUDUK',
+    seatingTitle: 'Meja bundar',
+    seatingIntro: (first: string) => `Duduklah melingkar sesuai urutan di bawah. Permainan dimulai dari ${first}, lalu berlanjut ke sebelah kiri ${first}.`,
+    seatingView: 'Dilihat dari atas meja',
+    seatingStarts: 'mulai',
+    seatingLeftOf: (name: string, prev: string) => `${name} — di sebelah kiri ${prev}`,
+    seatingPass: 'HP selalu dioper ke pemain di sebelah kirimu.',
+    reshuffle: 'ACAK ULANG',
+    seated: 'KAMI SUDAH DUDUK — MULAI',
     howAgain: 'Cara bermain',
     round: (r: number, total: number) => `Ronde ${r} dari ${total}`,
     passTo: 'Serahkan HP ke',
@@ -273,6 +292,47 @@ function ScaleQuestion({
   );
 }
 
+/**
+ * Round table seen from above. Seat 1 is at the bottom (nearest to whoever
+ * holds the phone); "to the left" of a seated player is clockwise from above.
+ */
+function RoundTable({ players, startsLabel }: { players: string[]; startsLabel: string }) {
+  const n = players.length;
+  const c = 160;
+  const angle = (k: number) => ((90 + (360 / n) * k) * Math.PI) / 180;
+  const at = (k: number, r: number) => [c + r * Math.cos(angle(k)), c + r * Math.sin(angle(k))];
+  const short = (name: string) => (name.length > 9 ? `${name.slice(0, 8)}…` : name);
+  return (
+    <svg viewBox="0 0 320 320" className="w-full max-w-[320px] mx-auto block" role="img" aria-label={players.map((p, i) => `${i + 1}. ${p}`).join(', ')}>
+      <circle cx={c} cy={c} r={56} fill="#2a1438" stroke="#7c3aed" strokeWidth={2} />
+      <circle cx={c} cy={c} r={80} fill="none" stroke="#4c1d95" strokeWidth={1} strokeDasharray="3 5" />
+      {players.map((_, k) => {
+        // Arrow half-way to the next seat, pointing clockwise (= to the left)
+        const mid = angle(k + 0.5);
+        const [x, y] = [c + 80 * Math.cos(mid), c + 80 * Math.sin(mid)];
+        const deg = (mid * 180) / Math.PI + 90;
+        return <polygon key={`a${k}`} points="-5,-4 5,0 -5,4" fill="#e879f9" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${deg.toFixed(1)})`} />;
+      })}
+      {players.map((name, k) => {
+        const [sx, sy] = at(k, 104);
+        // Names sit above seats in the top half and below the others, always
+        // centred on the seat so they never run off the sides of the drawing
+        const above = Math.sin(angle(k)) < -0.3;
+        const [lx, ly] = [sx, above ? sy - 24 : sy + 31];
+        return (
+          <g key={k}>
+            <circle cx={sx} cy={sy} r={17} fill={PLAYER_COLORS[k]} stroke={k === 0 ? '#fff' : 'none'} strokeWidth={3} />
+            <text x={sx} y={sy + 5} textAnchor="middle" fontSize="15" fontWeight="bold" fill="#0e0716">{k + 1}</text>
+            <text x={lx} y={ly} textAnchor="middle" fontSize="12" fill="#f5f3ff">{short(name)}</text>
+          </g>
+        );
+      })}
+      <text x={c} y={c - 3} textAnchor="middle" fontSize="11" fill="#e9d5ff">1 → 2 → 3</text>
+      <text x={c} y={c + 12} textAnchor="middle" fontSize="9" fill="#c4b5fd">★ {players[0] ? short(players[0]) : ''} {startsLabel}</text>
+    </svg>
+  );
+}
+
 function initials(name: string) {
   return name.trim().slice(0, 2).toUpperCase();
 }
@@ -343,11 +403,14 @@ export function MindReader() {
 
   const nextQuestions = () => pickQuestions(QUESTION_IDS, state.usedQuestionIds, QUESTIONS_PER_ROUND);
 
+  const arrangeSeats = (list: string[]) => {
+    if (validatePlayers(list) !== null) return;
+    dispatch({ type: 'ARRANGE', players: shuffleSeats(list) });
+  };
+
   const startGame = () => {
-    const trimmed = names.map((n) => n.trim());
-    if (validatePlayers(trimmed) !== null) return;
     setExpAwarded(false);
-    dispatch({ type: 'START', players: trimmed, questionIds: pickQuestions(QUESTION_IDS, [], QUESTIONS_PER_ROUND) });
+    dispatch({ type: 'START', questionIds: pickQuestions(QUESTION_IDS, state.usedQuestionIds, QUESTIONS_PER_ROUND) });
   };
 
   const shell = (children: React.ReactNode) => (
@@ -415,7 +478,6 @@ export function MindReader() {
         <div className="space-y-2 mb-3">
           {names.map((name, i) => (
             <div key={i} className="flex gap-2 items-center">
-              <span className="w-3 h-3 shrink-0" style={{ background: PLAYER_COLORS[i] }} />
               <input
                 value={name}
                 maxLength={16}
@@ -433,8 +495,36 @@ export function MindReader() {
           <button onClick={() => setNames((prev) => [...prev, ''])} className="flex items-center gap-2 text-sm text-fuchsia-300 mb-4"><Plus className="w-4 h-4" />{t.addPlayer}</button>
         )}
         {showError && <p className="text-amber-300 text-sm mb-3">{t.errors[error]}</p>}
-        <button disabled={error !== null} onClick={startGame} className="w-full py-4 border-2 border-fuchsia-400 bg-fuchsia-500/20 text-fuchsia-100 text-xs disabled:opacity-40" style={PIXEL}>{t.start}</button>
+        <button disabled={error !== null} onClick={() => arrangeSeats(names)} className="w-full py-4 border-2 border-fuchsia-400 bg-fuchsia-500/20 text-fuchsia-100 text-xs disabled:opacity-40" style={PIXEL}>{t.start}</button>
         <button onClick={() => dispatch({ type: 'SHOW_HOWTO' })} className="w-full mt-3 py-2 text-sm text-violet-300 flex items-center justify-center gap-2"><HelpCircle className="w-4 h-4" />{t.howAgain}</button>
+      </motion.div>
+    );
+  }
+
+  // ==================== ROUND TABLE (random seating) ====================
+  if (state.phase === 'seating') {
+    const first = state.players[0];
+    return shell(
+      <motion.div key={state.players.join('|')} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <h1 className="text-fuchsia-300 text-sm flex items-center gap-2" style={PIXEL}><Users className="w-5 h-5" />{t.seatingTitle}</h1>
+        <p className="text-violet-100/90 text-sm leading-relaxed">{t.seatingIntro(first)}</p>
+        <div className="border border-violet-500/30 bg-black/30 p-3">
+          <RoundTable players={state.players} startsLabel={t.seatingStarts} />
+          <p className="text-center text-violet-300/50 text-[11px] mt-1">{t.seatingView}</p>
+        </div>
+        <ol className="space-y-1.5">
+          {state.players.map((name, i) => (
+            <li key={i} className="flex items-center gap-3 text-sm">
+              <span className="w-7 h-7 shrink-0 rounded-full flex items-center justify-center font-bold text-[#0e0716]" style={{ background: PLAYER_COLORS[i] }}>{i + 1}</span>
+              <span className="text-violet-50">
+                {i === 0 ? <><b>{name}</b> — {t.seatingStarts}</> : t.seatingLeftOf(name, state.players[i - 1])}
+              </span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-violet-200/70 text-sm">{t.seatingPass}</p>
+        <button onClick={startGame} className="w-full py-4 border-2 border-fuchsia-400 bg-fuchsia-500/20 text-fuchsia-100 text-[10px] sm:text-xs" style={PIXEL}>{t.seated}</button>
+        <button onClick={() => arrangeSeats(state.players)} className="w-full py-3 border border-violet-500/50 text-violet-200 text-[10px] flex items-center justify-center gap-2" style={PIXEL}><RotateCcw className="w-4 h-4" />{t.reshuffle}</button>
       </motion.div>
     );
   }
@@ -644,10 +734,7 @@ export function MindReader() {
           </table>
         </div>
         <button
-          onClick={() => {
-            setExpAwarded(false);
-            dispatch({ type: 'START', players: state.players, questionIds: pickQuestions(QUESTION_IDS, state.usedQuestionIds, QUESTIONS_PER_ROUND), keepHistory: true });
-          }}
+          onClick={() => arrangeSeats(state.players)}
           className="w-full py-4 border-2 border-fuchsia-400 bg-fuchsia-500/20 text-fuchsia-100 text-[10px] sm:text-xs flex items-center justify-center gap-2"
           style={PIXEL}
         >
