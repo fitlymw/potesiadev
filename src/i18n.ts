@@ -25,7 +25,9 @@ i18n
       loadPath: '/potesiadev/locales/{{lng}}/translation.json',
     },
 
-    supportedLngs: ['en', 'zh', 'hi', 'es', 'fr', 'ar', 'bn', 'pt', 'ru', 'id'],
+    supportedLngs: ['id', 'en'],
+    // Treat regional codes such as id-ID or en-US as their base language
+    load: 'languageOnly',
   });
 
 export default i18n;

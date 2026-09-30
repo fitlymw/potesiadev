@@ -8,16 +8,8 @@ interface LanguageGatewayProps {
 }
 
 const languages = [
-  { code: 'en', label: 'English', native: 'English' },
-  { code: 'zh', label: 'Mandarin', native: '中文' },
-  { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
-  { code: 'es', label: 'Spanish', native: 'Español' },
-  { code: 'fr', label: 'French', native: 'Français' },
-  { code: 'ar', label: 'Arabic', native: 'العربية' },
-  { code: 'bn', label: 'Bengali', native: 'বাংলা' },
-  { code: 'pt', label: 'Portuguese', native: 'Português' },
-  { code: 'ru', label: 'Russian', native: 'Русский' },
   { code: 'id', label: 'Indonesian', native: 'Bahasa Indonesia' },
+  { code: 'en', label: 'English', native: 'English' },
 ];
 
 export function LanguageGateway({ onComplete }: LanguageGatewayProps) {
@@ -98,7 +90,7 @@ export function LanguageGateway({ onComplete }: LanguageGatewayProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
-              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-5 w-full"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 w-full max-w-xl"
             >
               {languages.map((lang, index) => (
                 <motion.button
