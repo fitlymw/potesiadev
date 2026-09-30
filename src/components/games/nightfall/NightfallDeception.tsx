@@ -282,6 +282,7 @@ function ActionTurn({ state, dispatch, t, onHint }: TurnProps) {
       {spec.accept.includes(0) && (
         <button disabled={!unlocked} onClick={() => dispatch({ type: 'SUBMIT_NIGHT', targets: [], suspect: suspect ?? undefined })} className={secondaryBtn} style={PIXEL}>{t.skipAbility}</button>
       )}
+      <p className="text-xs text-amber-200/90 border border-amber-400/30 bg-amber-500/5 p-2">👋 {t.patReminder}</p>
       <HintButton t={t} onHint={onHint} />
     </div>
   );
@@ -355,6 +356,7 @@ function JokerTurn({ state, dispatch, t, onHint }: TurnProps) {
       <button disabled={!ready || !unlocked} onClick={submit} className={primaryBtn} style={PIXEL}>
         {unlocked ? t.hideAndPass : t.minWait(Math.ceil(TIMING.minTurn - elapsed))}
       </button>
+      <p className="text-xs text-amber-200/90 border border-amber-400/30 bg-amber-500/5 p-2">👋 {t.patReminder}</p>
       <HintButton t={t} onHint={onHint} />
     </div>
   );
@@ -976,9 +978,15 @@ export function NightfallDeception() {
             <EventLines events={yesterday} state={state} t={t} />
           </div>
         )}
+        {isNight && state.turn === 0 && <p className="w-full text-base font-bold text-indigo-100 border-2 border-indigo-400/60 bg-indigo-500/10 p-3 mb-4">{t.nightStart}</p>}
+        {isNight && (
+          <p className="w-full text-base font-bold text-amber-100 border-2 border-amber-400/60 bg-amber-500/10 p-3 mb-5">
+            {state.turn === 0 ? t.passFirst(state.players[player]) : t.passNext(state.players[player])}
+          </p>
+        )}
         <p className="text-indigo-200 mb-2">{t.passTo}</p>
         <p className="text-3xl sm:text-4xl font-bold mb-4 break-all" style={{ color: PLAYER_COLORS[player] }}>{state.players[player]}</p>
-        <p className="text-indigo-200/70 text-sm mb-10 max-w-sm">{isNight ? t.passNightHint : t.passDawnHint}</p>
+        <p className="text-indigo-200/70 text-sm mb-10 max-w-sm">{isNight ? t.wakeUp(state.players[player]) : t.passDawnHint}</p>
         <EyeOff className="w-12 h-12 text-indigo-500/60 mb-10" />
         <button onClick={() => { setOverlay(null); dispatch({ type: 'CONFIRM_PASS' }); }} className="w-full py-4 border-2 text-sm font-bold" style={{ borderColor: PLAYER_COLORS[player], color: PLAYER_COLORS[player] }}>{t.imReady(state.players[player])}</button>
       </motion.div>
@@ -997,6 +1005,7 @@ export function NightfallDeception() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.5 }} className="flex flex-col items-center text-center pt-6 space-y-5">
         {deaths.length ? <Skull className="w-16 h-16 text-red-400" /> : <Sun className="w-16 h-16 text-amber-300" />}
         <h2 className="text-lg" style={PIXEL}>{t.morningTitle(state.night)}</h2>
+        <p className="text-amber-200 font-bold">{t.eyesOpen}</p>
         <p className={`text-xl font-bold ${deaths.length ? 'text-red-200' : 'text-amber-100'}`}>{deaths.length ? t.deathsSome(nameList(state, deaths)) : t.deathsNone}</p>
         {highlights.length > 0 && (
           <div className="w-full text-left border border-emerald-400/40 bg-emerald-500/5 p-3 space-y-1.5">

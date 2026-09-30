@@ -74,7 +74,7 @@ export function chatUses(players: number): number {
 }
 /** Chance that an ability reading roles or sides sees the Pinokio as Dark. */
 export const PINOKIO_DARK_CHANCE = 0.7;
-/** In Joker mode, role-reading abilities (Aura, Rune, Dirge) are only this often correct. */
+/** In Joker mode, Rune and Dirge are only this often correct (Aura, a yes/no answer, is a pure coin flip). */
 export const JOKER_READ_TRUE = 0.15;
 
 /** Chance per Standard match that the Saint / the Heretic is in play (never both). */
@@ -110,7 +110,7 @@ export type Lang = 'en' | 'id';
 export type Phase = 'howto' | 'setup' | 'seating' | 'nightPass' | 'night' | 'nightEnd' | 'morning' | 'dawnPass' | 'dawn' | 'day' | 'final';
 export type Side = 'good' | 'evil';
 /** Why a piece of information may be wrong: poisoned, dying from a Gouge, or the solo-boss first-night blackout. */
-export type Quality = 'true' | 'poison' | 'gouge' | 'blind' | 'fog';
+export type Quality = 'true' | 'poison' | 'gouge' | 'blind' | 'fog' | 'haze';
 export type Guard = 'aegis' | 'tide';
 export type AttackResult = 'killed' | Guard | 'dead';
 
@@ -1076,10 +1076,13 @@ export function resolveNight(state: NfState): NfState {
     if (!alive[p] || state.crowned === p || kindOf(p) === 'frenzy') continue;
     const role = roles[p];
     // Joker mode: role readers are right only 15% of the time (from night 2; night 1 is the blackout)
-    const fog = state.mode === 'joker' && night >= 2 && ['aura', 'rune', 'dirge'].includes(role) && rng() >= JOKER_READ_TRUE;
-    const q = fog ? 'fog' : quality(p);
+    // A yes/no answer that is "15% right" is simply 85% right once flipped, so Aura is a coin flip instead
+    const jokerNight = state.mode === 'joker' && night >= 2;
+    const haze = jokerNight && role === 'aura';
+    const fog = jokerNight && ['rune', 'dirge'].includes(role) && rng() >= JOKER_READ_TRUE;
+    const q: Quality = haze ? 'haze' : fog ? 'fog' : quality(p);
     const lie = q === 'poison' || q === 'gouge' || q === 'fog';
-    const random = q === 'blind';
+    const random = q === 'blind' || q === 'haze';
     let item: ReportItem | null = null;
 
     if (role === 'aura') {
