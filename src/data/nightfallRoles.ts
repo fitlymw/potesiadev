@@ -12,9 +12,9 @@ type Localized = { en: string; id: string };
 export type Team = 'luminary' | 'cursed' | 'shadow' | 'nightbringer';
 
 export type RoleId =
-  | 'aura' | 'aegis' | 'glyph' | 'rune' | 'trace' | 'dirge' | 'nova' | 'spark' | 'gaze' | 'loom' | 'pyre' | 'apex' | 'pact' | 'tide'
+  | 'aura' | 'aegis' | 'glyph' | 'rune' | 'trace' | 'dirge' | 'nova' | 'spark' | 'gaze' | 'loom' | 'pyre' | 'apex' | 'pact' | 'tide' | 'saint'
   | 'echo' | 'baiter' | 'void'
-  | 'mirage' | 'snare' | 'viper' | 'blight'
+  | 'mirage' | 'snare' | 'viper' | 'blight' | 'heretic'
   | 'abyss' | 'fang' | 'gouge' | 'bane'
   | 'joker' | 'zombie';
 
@@ -112,6 +112,10 @@ export const ROLES: Record<RoleId, RoleInfo> = {
     ['Twice per game, swap two players’ seats and shield them that night.', 'Dua kali per permainan, tukar kursi dua pemain dan lindungi mereka malam itu.'],
     ['From the second night, twice per game: choose 2 players. They swap seats (before any seat attack that night), and that night no attack, Gouge or infection can hurt them. You may skip.', 'Mulai malam kedua, dua kali per permainan: pilih 2 pemain. Mereka bertukar kursi (sebelum serangan kursi malam itu), dan malam itu serangan, Gouge, atau infeksi tidak bisa melukai mereka. Kamu boleh melewatinya.'],
     [['Swapping seats changes who sits next to whom — useful for Rune and for the Viper vote order.', 'Menukar kursi mengubah siapa duduk di sebelah siapa — berguna untuk Rune dan urutan voting Viper.'], ['The Joker also swaps seats, so a swap does not prove who did it.', 'Joker juga menukar kursi, jadi pertukaran kursi tidak membuktikan siapa pelakunya.']]),
+  saint: r('saint', 'luminary', 'Saint',
+    ['After the first blood you are revealed and must kill or revive — at the cost of your life.', 'Setelah first blood kamu terungkap dan wajib membunuh atau menghidupkan kembali — dengan nyawamu sebagai bayarannya.'],
+    ['You have no night action and cannot be poisoned. The day after the first night death (first blood), the Oracle reveals to everyone that you are the Saint, and before nominations you must choose: kill 1 living player, or bring back 1 player who died in that first blood. Using your power costs your life, but you keep 2 ghost votes (at most 1 per day). Afterwards, when the next player dies, you learn 2 possible roles for them — one Dark, one Light. Usually one is true, but there is a 30% chance both are false. A kill is blocked if the target was protected by Aegis or Tide the night before.', 'Kamu tidak punya aksi malam dan tidak bisa diracun. Siang setelah kematian malam pertama (first blood), The Oracle mengumumkan ke semua pemain bahwa kamu adalah Saint, dan sebelum nominasi kamu wajib memilih: membunuh 1 pemain yang hidup, atau menghidupkan kembali 1 pemain yang mati pada first blood itu. Memakai kekuatanmu dibayar dengan nyawamu, tapi kamu tetap punya 2 suara hantu (maksimal 1 per hari). Setelahnya, saat pemain berikutnya mati, kamu mengetahui 2 kemungkinan perannya — satu Kubu Gelap, satu Kubu Terang. Biasanya salah satunya benar, tapi ada 30% kemungkinan keduanya salah. Pembunuhan gagal jika targetnya dilindungi Aegis atau Tide pada malam sebelumnya.'],
+    [['You are the early turning point: revive a key role that fell, or strike the player you trust least.', 'Kamu adalah titik balik di awal permainan: hidupkan kembali peran penting yang gugur, atau hukum pemain yang paling kamu curigai.'], ['Beware: a Heretic may also claim to be the Saint.', 'Hati-hati: Heretic juga bisa muncul sebagai Saint.']]),
   // ==================== CURSED ====================
   echo: r('echo', 'cursed', 'Echo',
     ['Your vote counts twice — but a wrong execution costs your life.', 'Suaramu dihitung dua — tapi eksekusi yang salah membuatmu mati.'],
@@ -142,6 +146,10 @@ export const ROLES: Record<RoleId, RoleInfo> = {
     ['Your presence adds 2 extra Cursed to the game.', 'Kehadiranmu menambah 2 Cursed ke dalam permainan.'],
     ['You have no night action. When you are in the game, 2 Luminaries are replaced by 2 Cursed, so the Light side has more troublemakers.', 'Kamu tidak punya aksi malam. Saat kamu ada dalam permainan, 2 Luminary diganti 2 Cursed, sehingga Kubu Terang punya lebih banyak pengacau.'],
     [['If the Light side notices many Cursed, they may suspect a Blight — bluff as a Cursed yourself.', 'Kalau Kubu Terang melihat banyak Cursed, mereka bisa curiga ada Blight — menyamarlah sebagai Cursed.']]),
+  heretic: r('heretic', 'shadow', 'Heretic',
+    ['A false Saint: revealed to all as the Saint after first blood — kill or revive for the Dark side.', 'Saint palsu: diumumkan ke semua sebagai Saint setelah first blood — membunuh atau menghidupkan untuk Kubu Gelap.'],
+    ['You work exactly like the Saint and the whole table is told you ARE the Saint. The day after the first night death you must kill 1 living player or bring back 1 first-blood victim, then die with 2 ghost votes (at most 1 per day). You also get the Saint’s 2-role vision of the next death. You cannot be poisoned. A Saint and a Heretic are never in the same game.', 'Kamu bekerja persis seperti Saint dan seluruh meja diberi tahu bahwa kamu ADALAH Saint. Siang setelah kematian malam pertama kamu wajib membunuh 1 pemain yang hidup atau menghidupkan kembali 1 korban first blood, lalu mati dengan 2 suara hantu (maksimal 1 per hari). Kamu juga mendapat penglihatan 2 peran Saint untuk kematian berikutnya. Kamu tidak bisa diracun. Saint dan Heretic tidak pernah ada di permainan yang sama.'],
+    [['Everyone thinks you are holy — use that trust, then strike a key Light player.', 'Semua orang mengira kamu suci — manfaatkan kepercayaan itu, lalu singkirkan pemain penting Kubu Terang.'], ['Reviving a harmless Light player can make your “Saint” act look genuine.', 'Menghidupkan pemain Terang yang tidak berbahaya bisa membuat aksi “Saint”-mu terlihat asli.']]),
   // ==================== NIGHTBRINGER ====================
   abyss: r('abyss', 'nightbringer', 'Abyss',
     ['Boss. From the second night, kill one player each night.', 'Bos. Mulai malam kedua, bunuh satu pemain tiap malam.'],

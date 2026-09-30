@@ -55,6 +55,17 @@ export function setupFor(n: number, mode: Mode): [number, number, number, number
 export const MISINFO_ROLES: RoleId[] = ['mirage', 'baiter', 'gouge'];
 /** First-night information roles: useless under the solo-boss blackout, so left out of those modes. */
 export const NIGHT_ONE_ROLES: RoleId[] = ['spark', 'gaze', 'glyph'];
+/** Light roles used only in Standard mode (first-night info, and the Saint whose twin is a Shadow). */
+export const STANDARD_ONLY_ROLES: RoleId[] = [...NIGHT_ONE_ROLES, 'saint'];
+/** Roles that are never dealt together. */
+export const EXCLUSIVE_ROLES: [RoleId, RoleId][] = [['saint', 'heretic']];
+/** The Saint and its Shadow twin, the Heretic (publicly revealed as "the Saint"). */
+export const SAINT_ROLES: RoleId[] = ['saint', 'heretic'];
+export const SAINT_GHOST_VOTES = 2;
+/** Balance settings (tuned by simulation). */
+export const TUNING = { gougeFromNight: 2, gougeUnstoppable: false, hereticKeepsLife: false, fangRestAfterShield: false, fangShieldLastDay: 0 };
+/** Chance that both roles in the Saint's vision are false. */
+export const SAINT_VISION_BOTH_FALSE = 0.3;
 export const TIDE_USES = 2;
 /**
  * Zombie rules, tuned by simulation so it wins about as often as Standard:
@@ -114,6 +125,7 @@ export type ReportItem =
   | { k: 'infectResult'; target: number; ok: boolean }
   | { k: 'hiveGrew'; target: number }
   | { k: 'jokerSight'; seen: SightEntry[] }
+  | { k: 'saintVision'; target: number; dark: RoleId; light: RoleId }
   | { k: 'died' }
   | { k: 'becameBoss'; role: RoleId }
   | { k: 'nothing' };
@@ -154,12 +166,15 @@ export type PublicEvent =
   | { k: 'noExecution' }
   | { k: 'novaHit'; shooter: number; target: number }
   | { k: 'novaMiss'; shooter: number; target: number; died: boolean }
-  | { k: 'apex' };
+  | { k: 'apex' }
+  | { k: 'saintRevealed'; player: number }
+  | { k: 'saintKill'; saint: number; target: number; blocked: boolean }
+  | { k: 'saintRevive'; saint: number; target: number };
 
 /** Everything that happened, in plain order, for the end-of-game chronicle. */
 export type ChronItem =
   | { k: 'darkMeet'; boss: number; shadows: number[] }
-  | { k: 'poison'; by: number; target: number }
+  | { k: 'poison'; by: number; target: number; immune?: boolean }
   | { k: 'protect'; by: number; target: number; ok: boolean }
   | { k: 'attack'; by: number; target: number; result: AttackResult }
   | { k: 'bossPoisoned'; by: number }
@@ -189,7 +204,11 @@ export type ChronItem =
   | { k: 'nova'; shooter: number; target: number; hit: boolean; real: boolean }
   | { k: 'apex'; by: number }
   | { k: 'jokerSight'; by: number; seen: (SightEntry & { real: boolean })[] }
-  | { k: 'suspicion'; p: number; target: number };
+  | { k: 'suspicion'; p: number; target: number }
+  | { k: 'saintRevealed'; player: number }
+  | { k: 'saintKill'; by: number; target: number; blocked: boolean }
+  | { k: 'saintRevive'; by: number; target: number }
+  | { k: 'saintVision'; by: number; target: number; dark: RoleId; light: RoleId; real: 'dark' | 'light' | 'none' };
 
 export interface ChronEntry {
   round: number;
@@ -208,20 +227,41 @@ export interface JokerPlan {
 
 /** End-of-game points: Light players for correct suspicions, Dark players for surviving and killing. */
 export interface Score {
+  /** Correct "least trusted" picks (Light). */
   suspect: number;
+  /** Nights survived (Dark). */
   survived: number;
+  /** Kills (Dark; the Joker's crown holder and the Zombie's horde count for their boss). */
   kills: number;
+  /** Votes for an executed Dark / Light player (Light voters). */
+  votesRight: number;
+  votesWrong: number;
+  /** Points from successful abilities (Light): saves, revenge, Nova hit, revivals, Saint. */
+  feats: number;
 }
-export const POINTS = { suspect: 3, survived: 1, kill: 2 };
-const noScore = (): Score => ({ suspect: 0, survived: 0, kills: 0 });
+export const POINTS = { suspect: 2, survived: 1, kill: 2, voteRight: 2, voteWrong: -1, win: 3 };
+/** Ability points for the Light side. */
+export const FEAT_POINTS = { save: 3, pyre: 3, nova: 5, revive: 2, saintKill: 3 };
+const noScore = (): Score => ({ suspect: 0, survived: 0, kills: 0, votesRight: 0, votesWrong: 0, feats: 0 });
 
-export function pointsOf(s: Score | undefined): number {
-  return s ? s.suspect * POINTS.suspect + s.survived * POINTS.survived + s.kills * POINTS.kill : 0;
+/** True when the player finished on the winning side (and earns the win bonus). */
+export function onWinningSide(state: NfState, p: number): boolean {
+  return state.winner !== null && sideOfPlayer(state, p) === state.winner;
+}
+
+export function pointsOf(state: NfState, p: number): number {
+  const s = state.score[p];
+  if (!s) return 0;
+  return (
+    s.suspect * POINTS.suspect + s.survived * POINTS.survived + s.kills * POINTS.kill +
+    (s.votesRight ?? 0) * POINTS.voteRight + (s.votesWrong ?? 0) * POINTS.voteWrong + (s.feats ?? 0) +
+    (onWinningSide(state, p) ? POINTS.win : 0)
+  );
 }
 
 /** Players with the most points (ties share the MVP title; nobody if all have 0). */
 export function mvps(state: NfState): number[] {
-  const pts = state.players.map((_, p) => pointsOf(state.score[p]));
+  const pts = state.players.map((_, p) => pointsOf(state, p));
   const top = Math.max(0, ...pts);
   return top > 0 ? pts.flatMap((v, p) => (v === top ? [p] : [])) : [];
 }
@@ -243,8 +283,10 @@ export interface NfState {
   /** Roles at the start of each night, to label the chronicle. */
   roundRoles: Record<number, RoleId[]>;
   alive: boolean[];
-  /** Dead players keep one ghost vote for the rest of the game. */
-  ghostVote: boolean[];
+  /** Ghost votes left for dead players (1 normally, 2 for a Saint who used its power). */
+  ghostVote: number[];
+  /** Day on which each dead player last used a ghost vote (at most one per day). */
+  ghostDay: Record<number, number>;
   bluffs: RoleId[];
   seed: number;
   night: number;
@@ -260,6 +302,8 @@ export interface NfState {
   gouged: { target: number; due: number; by: number }[];
   novaUsed: boolean;
   fangShield: boolean;
+  /** Night on which a Fang that survived an execution cannot attack. */
+  fangRestNight: number | null;
   loomUsed: boolean;
   tideLeft: number;
   pact: [number, number] | null;
@@ -283,8 +327,16 @@ export interface NfState {
   chronicle: ChronEntry[];
   /** Points per player, shown with the MVP at the end. */
   score: Record<number, Score>;
-  /** Tonight's "least trusted" picks by Light players with no action. */
+  /** Tonight's "least trusted" picks by Light players. */
   suspicions: Record<number, number>;
+  /** Night of the first night death, and who died then. */
+  firstBloodNight: number | null;
+  firstBlood: number[];
+  saintUsed: boolean;
+  /** After using its power the Saint waits for the next death to receive its 2-role vision. */
+  saintWatch: { saint: number; target: number | null } | null;
+  /** Players shielded by Aegis/Tide last night (still protected from the Saint during that day). */
+  guardedLastNight: number[];
   winner: Side | null;
   winReason: WinReason | null;
 }
@@ -301,6 +353,7 @@ export const initialState = (lang: Lang = 'id', mode: Mode = 'standard'): NfStat
   roundRoles: {},
   alive: [],
   ghostVote: [],
+  ghostDay: {},
   bluffs: [],
   seed: 1,
   night: 0,
@@ -312,6 +365,7 @@ export const initialState = (lang: Lang = 'id', mode: Mode = 'standard'): NfStat
   gouged: [],
   novaUsed: false,
   fangShield: true,
+  fangRestNight: null,
   loomUsed: false,
   tideLeft: TIDE_USES,
   pact: null,
@@ -330,6 +384,11 @@ export const initialState = (lang: Lang = 'id', mode: Mode = 'standard'): NfStat
   chronicle: [],
   score: {},
   suspicions: {},
+  firstBloodNight: null,
+  firstBlood: [],
+  saintUsed: false,
+  saintWatch: null,
+  guardedLastNight: [],
   winner: null,
   winReason: null,
 });
@@ -342,7 +401,8 @@ export type Action =
   | { type: 'ARRANGE'; players: string[] }
   | { type: 'START'; seed: number }
   | { type: 'CONFIRM_PASS' }
-  | { type: 'SUBMIT_NIGHT'; targets: number[]; joker?: { mode: JokerMove; swap: number[] } }
+  | { type: 'SUBMIT_NIGHT'; targets: number[]; joker?: { mode: JokerMove; swap: number[] }; suspect?: number }
+  | { type: 'SAINT_ACT'; mode: 'kill' | 'revive'; target: number }
   | { type: 'SHOW_MORNING' }
   | { type: 'BEGIN_DAWN' }
   | { type: 'DONE_DAWN'; shared?: boolean }
@@ -429,6 +489,21 @@ export function pendingPlayer(state: NfState): number | null {
   return state.seats[(lapStart(state) + state.turn) % n];
 }
 
+/** Whose turn the seat map highlights: who holds (or is about to hold) the phone, or who starts the next lap. */
+export function turnPlayer(state: NfState): number | null {
+  const n = state.players.length;
+  if (!n || state.seats.length !== n) return null;
+  if (['nightPass', 'night', 'dawnPass', 'dawn'].includes(state.phase)) return pendingPlayer(state);
+  if (state.phase === 'nightEnd' || state.phase === 'morning') return state.seats[lapStart(state)];
+  if (state.phase === 'day') return state.seats[state.night % n];
+  return null;
+}
+
+/** Alive, or dead with a ghost vote left: the yellow outline on the seat map. */
+export function canStillVote(state: NfState, p: number): boolean {
+  return state.alive[p] || state.ghostVote[p] > 0;
+}
+
 /** Nearest living neighbour on each side (skipping the dead), following the current seats. */
 export function livingNeighbours(state: NfState, p: number): [number | null, number | null] {
   const n = state.players.length;
@@ -467,9 +542,26 @@ export function hordeNight(state: NfState): boolean {
   return (state.night - 1) % ZOMBIE_RULES.infectEvery === 0;
 }
 
-/** A living Light player with no action tonight picks who they trust least — a correct pick earns points. */
+/** Every living Light player may name who they trust least each night — a correct pick earns points. */
 export function canSuspect(state: NfState, p: number): boolean {
-  return state.alive[p] && sideOfPlayer(state, p) === 'good' && nightSpec(state, p).kind === 'dummy';
+  return state.alive[p] && sideOfPlayer(state, p) === 'good';
+}
+
+/** The Saint or Heretic in play (alive or dead), if any. */
+export function saintOf(state: NfState): number | undefined {
+  const p = state.roles.findIndex((r) => SAINT_ROLES.includes(r));
+  return p >= 0 ? p : undefined;
+}
+
+/** The day after the first blood the revealed Saint must act before nominations. */
+export function saintMustAct(state: NfState): boolean {
+  const saint = saintOf(state);
+  return state.phase === 'day' && !state.saintUsed && state.firstBloodNight === state.night && saint !== undefined && state.alive[saint];
+}
+
+/** Dead players who can still cast a ghost vote today. */
+export function canGhostVote(state: NfState, p: number): boolean {
+  return !state.alive[p] && state.ghostVote[p] > 0 && state.ghostDay[p] !== state.night;
 }
 
 /** What the Joker may do tonight (it never kills). */
@@ -493,13 +585,14 @@ export function nightSpec(state: NfState, p: number): NightSpec {
   if (role === 'joker') return spec('joker', 1, []);
   if (role === 'aura') return spec('aura', 2, [2], true);
   if (role === 'mirage') return spec('poison', 1, [1]);
+  if (role === 'gouge' && state.night >= TUNING.gougeFromNight) return spec('gouge', double, [double]);
   if (state.night >= 2) {
     if (role === 'aegis') return spec('protect', 1, [1]);
     if (role === 'loom' && !state.loomUsed && state.alive.some((a) => !a)) return spec('revive', 1, [0, 1], false, 'dead');
     if (role === 'pyre') return spec('revenge', 1, [0, 1]);
     if (role === 'tide' && state.tideLeft > 0) return spec('tide', 2, [0, 2], true);
+    if (role === 'fang' && state.fangRestNight === state.night) return dummy;
     if (role === 'abyss' || role === 'fang') return spec('kill', double, [double], role === 'abyss' && double === 1);
-    if (role === 'gouge') return spec('gouge', double, [double]);
     if (role === 'bane') return spec('bane', 2, state.voidDouble ? [2] : [1, 2]);
   }
   return dummy;
@@ -542,6 +635,7 @@ export function dealRoles(n: number, random: () => number, mode: Mode = 'standar
     for (const r of shuffle(pool, random)) {
       if (out.length >= k) break;
       if (MISINFO_ROLES.includes(r) && inPlay.some((x) => MISINFO_ROLES.includes(x))) continue;
+      if (EXCLUSIVE_ROLES.some(([a, b]) => (r === a && inPlay.includes(b)) || (r === b && inPlay.includes(a)))) continue;
       out.push(r);
       inPlay.push(r);
     }
@@ -557,7 +651,7 @@ export function dealRoles(n: number, random: () => number, mode: Mode = 'standar
   }
   // Not enough Cursed roles (small pool or synergy lock): the rest become Luminaries
   lum += cur - draw(rolesOfTeam('cursed'), cur).length;
-  const lumPool = rolesOfTeam('luminary').filter((r) => mode === 'standard' || !NIGHT_ONE_ROLES.includes(r));
+  const lumPool = rolesOfTeam('luminary').filter((r) => mode === 'standard' || !STANDARD_ONLY_ROLES.includes(r));
   draw(lumPool, lum);
   const roles = shuffle(inPlay, random);
   const bluffs = shuffle([...lumPool, ...rolesOfTeam('cursed')].filter((r) => !roles.includes(r)), random).slice(0, 3);
@@ -637,7 +731,7 @@ export function resolveNight(state: NfState): NfState {
   const die = (t: number, byDark: boolean) => {
     if (!alive[t]) return false;
     alive[t] = false;
-    ghostVote[t] = true;
+    ghostVote[t] = 1;
     deaths.push(t);
     if (byDark) darkKills.add(t);
     return true;
@@ -645,10 +739,13 @@ export function resolveNight(state: NfState): NfState {
 
   // 1. Poison
   const mirage = actorOf('poison');
-  const poisoned = mirage !== undefined ? chosen(mirage)[0] ?? null : null;
-  if (mirage !== undefined && poisoned !== null) {
-    visited.add(poisoned);
-    chron.push({ k: 'poison', by: mirage, target: poisoned });
+  const poisonTarget = mirage !== undefined ? chosen(mirage)[0] ?? null : null;
+  // The Saint and the Heretic cannot be poisoned
+  const poisonImmune = poisonTarget !== null && SAINT_ROLES.includes(roles[poisonTarget]);
+  const poisoned = poisonImmune ? null : poisonTarget;
+  if (mirage !== undefined && poisonTarget !== null) {
+    visited.add(poisonTarget);
+    chron.push({ k: 'poison', by: mirage, target: poisonTarget, immune: poisonImmune });
   }
   const disabled = (p: number) => poisoned === p;
   const dying = (p: number) => gouged.some((g) => g.target === p);
@@ -683,6 +780,8 @@ export function resolveNight(state: NfState): NfState {
     pub.push({ k: 'saved', target: t, by, what });
     if (by === 'aegis' && aegis !== undefined) report(aegis, { k: 'protectSaved', target: t });
     if (by === 'tide' && tide !== undefined) report(tide, { k: 'tideSaved', target: t });
+    const saver = by === 'aegis' ? aegis : tide;
+    if (saver !== undefined && sideOfPlayer(state, t) === 'good') score[saver].feats += FEAT_POINTS.save;
   };
   /** A night attack on t by `by` (who gets the kill points). */
   const attack = (t: number, by: number | undefined): AttackResult => {
@@ -702,13 +801,14 @@ export function resolveNight(state: NfState): NfState {
   if (state.mode === 'standard') {
     const boss = everyone.find((p) => alive[p] && isNightbringer(roles[p]));
     const targets = boss !== undefined ? chosen(boss) : [];
-    if (boss !== undefined && night >= 2 && targets.length) {
+    const minNight = boss !== undefined && roles[boss] === 'gouge' ? TUNING.gougeFromNight : 2;
+    if (boss !== undefined && night >= minNight && targets.length) {
       const r = roles[boss];
       if (disabled(boss)) chron.push({ k: 'bossPoisoned', by: boss });
       else if (r === 'gouge') {
         for (const t of targets) {
           visited.add(t);
-          const g = guard(t);
+          const g = TUNING.gougeUnstoppable ? null : guard(t);
           if (g) announceSave(t, g, 'attack');
           else if (alive[t] && !dying(t)) gouged = [...gouged, { target: t, due: night + 1, by: boss }];
           chron.push({ k: 'gouge', by: boss, target: t, result: g ?? 'marked' });
@@ -840,6 +940,7 @@ export function resolveNight(state: NfState): NfState {
   const pyre = everyone.find((p) => kindOf(p) === 'revenge');
   const revenge = pyre !== undefined ? chosen(pyre)[0] : undefined;
   if (pyre !== undefined && revenge !== undefined && darkKills.has(pyre) && !disabled(pyre) && die(revenge, false)) {
+    if (sideOfPlayer(state, revenge) === 'evil') score[pyre].feats += FEAT_POINTS.pyre;
     pub.push({ k: 'pyre', by: pyre, target: revenge });
     report(pyre, { k: 'pyreFired', target: revenge });
     chron.push({ k: 'pyre', by: pyre, target: revenge });
@@ -864,7 +965,8 @@ export function resolveNight(state: NfState): NfState {
     const ok = !disabled(loom) && !state.alive[t] && !alive[t];
     if (ok) {
       alive[t] = true;
-      ghostVote[t] = false;
+      ghostVote[t] = 0;
+      if (sideOfPlayer(state, t) === 'good') score[loom].feats += FEAT_POINTS.revive;
       pub.push({ k: 'revived', target: t });
       report(t, { k: 'wasRevived' });
     }
@@ -994,7 +1096,7 @@ export function resolveNight(state: NfState): NfState {
     if (near.length) {
       // With two neighbours exactly one lies; with a single neighbour it is a coin flip
       const liar = near.length === 2 ? Math.floor(rng() * 2) : rng() < 0.5 ? 0 : -1;
-      const goodPool = [...rolesOfTeam('luminary').filter((r) => !NIGHT_ONE_ROLES.includes(r)), ...rolesOfTeam('cursed')];
+      const goodPool = [...rolesOfTeam('luminary').filter((r) => !STANDARD_ONLY_ROLES.includes(r)), ...rolesOfTeam('cursed')];
       const seen = near.map((x, i) => {
         const real = i !== liar;
         return { ...x, role: real ? roles[x.player] : pick(goodPool.filter((r) => r !== roles[x.player])), real };
@@ -1013,10 +1115,42 @@ export function resolveNight(state: NfState): NfState {
   }
   for (const p of everyone) if (alive[p] && sideOfPlayer(state, p) === 'evil') score[p].survived++;
 
+  const lastNightDeaths = [...new Set(deaths)].filter((d) => !alive[d]);
+
+  // First blood: the first night with a death reveals the Saint (or the Heretic posing as one)
+  let { firstBloodNight, firstBlood } = state;
+  if (firstBloodNight === null && lastNightDeaths.length) {
+    firstBloodNight = night;
+    firstBlood = lastNightDeaths;
+    const saint = everyone.find((p) => SAINT_ROLES.includes(roles[p]));
+    if (saint !== undefined && alive[saint] && !state.saintUsed) {
+      pub.push({ k: 'saintRevealed', player: saint });
+      chron.push({ k: 'saintRevealed', player: saint });
+    }
+  }
+
+  // The Saint's vision of the next death after it used its power
+  let watch = state.saintWatch;
+  if (watch && watch.target === null) {
+    const next = lastNightDeaths.find((d) => d !== watch!.saint);
+    if (next !== undefined) watch = { ...watch, target: next };
+  }
+  if (watch && watch.target !== null) {
+    const truth = roles[watch.target];
+    const darkPool = [...rolesOfTeam('shadow'), ...STANDARD_BOSSES];
+    const lightPool = [...rolesOfTeam('luminary'), ...rolesOfTeam('cursed')];
+    const truthDark = darkPool.includes(truth);
+    const bothFalse = rng() < SAINT_VISION_BOTH_FALSE;
+    const dark = !bothFalse && truthDark ? truth : pick(darkPool.filter((r) => r !== truth));
+    const light = !bothFalse && !truthDark ? truth : pick(lightPool.filter((r) => r !== truth));
+    report(watch.saint, { k: 'saintVision', target: watch.target, dark, light });
+    chron.push({ k: 'saintVision', by: watch.saint, target: watch.target, dark, light, real: bothFalse ? 'none' : truthDark ? 'dark' : 'light' });
+    watch = null;
+  }
+
   for (const d of new Set(deaths)) if (!alive[d]) report(d, { k: 'died' });
   for (const p of everyone) if (!(reports[p] ?? []).some((r) => r.night === night)) report(p, { k: 'nothing' });
 
-  const lastNightDeaths = [...new Set(deaths)].filter((d) => !alive[d]);
   let resolved: NfState = {
     ...state,
     alive,
@@ -1040,6 +1174,10 @@ export function resolveNight(state: NfState): NfState {
     jokerPlan: null,
     score,
     suspicions: {},
+    firstBloodNight,
+    firstBlood,
+    saintWatch: watch,
+    guardedLastNight: [...(shield !== null ? [shield] : []), ...immune],
     phase: 'nightEnd',
   };
   resolved = { ...dropCrown(resolved), chronicle: [...state.chronicle, ...chron.map((item) => ({ round: night, stage: 'night' as const, item }))] };
@@ -1060,26 +1198,44 @@ function dayDeaths(state: NfState, victims: number[]): { state: NfState; events:
   const chron: ChronItem[] = [];
   for (const v of victims) {
     alive[v] = false;
-    ghostVote[v] = true;
+    ghostVote[v] = 1;
   }
   if (state.pact) {
     const [a, b] = state.pact;
     for (const [x, y] of [[a, b], [b, a]]) {
       if (victims.includes(x) && alive[y]) {
         alive[y] = false;
-        ghostVote[y] = true;
+        ghostVote[y] = 1;
         events.push({ k: 'pactDeath', target: y, partner: x });
         chron.push({ k: 'pactDeath', target: y, partner: x });
       }
     }
   }
-  return { state: dropCrown({ ...state, alive, ghostVote }), events, chron };
+  // A Saint waiting for its vision gets the first of these deaths
+  const watch = state.saintWatch && state.saintWatch.target === null ? victims.find((v) => v !== state.saintWatch!.saint) : undefined;
+  const saintWatch = watch !== undefined ? { ...state.saintWatch!, target: watch } : state.saintWatch;
+  return { state: dropCrown({ ...state, alive, ghostVote, saintWatch }), events, chron };
+}
+
+/** Light voters earn points for voting a Dark player out (and lose one for a Light one). */
+function scoreVotes(state: NfState, player: number, nomination: Nomination): NfState['score'] {
+  const dark = sideOfPlayer(state, player) === 'evil';
+  const score = { ...state.score };
+  for (const v of nomination.voters) {
+    if (sideOfPlayer(state, v) !== 'good') continue;
+    const s = { ...(score[v] ?? noScore()) };
+    if (dark) s.votesRight = (s.votesRight ?? 0) + 1;
+    else s.votesWrong = (s.votesWrong ?? 0) + 1;
+    score[v] = s;
+  }
+  return score;
 }
 
 function execute(state: NfState, player: number, nomination: Nomination): NfState {
+  state = { ...state, score: scoreVotes(state, player, nomination) };
   const role = state.roles[player];
-  if (role === 'fang' && state.fangShield) {
-    return { ...state, fangShield: false, events: [...state.events, { k: 'shielded', player }], chronicle: dayChron(state, [{ k: 'shielded', target: player }]) };
+  if (role === 'fang' && state.fangShield && (TUNING.fangShieldLastDay === 0 || state.night <= TUNING.fangShieldLastDay)) {
+    return { ...state, fangShield: false, fangRestNight: TUNING.fangRestAfterShield ? state.night + 1 : state.fangRestNight, events: [...state.events, { k: 'shielded', player }], chronicle: dayChron(state, [{ k: 'shielded', target: player }]) };
   }
   const working = state.poisoned !== player;
   const wrongful = sideOfPlayer(state, player) === 'good';
@@ -1129,7 +1285,7 @@ export function reducer(state: NfState, action: Action): NfState {
         pact,
         seed: action.seed,
         alive: Array(n).fill(true),
-        ghostVote: Array(n).fill(false),
+        ghostVote: Array(n).fill(0),
         infected: Array(n).fill(false),
         score: Object.fromEntries(range(n).map((p) => [p, noScore()])),
         night: 1,
@@ -1144,8 +1300,9 @@ export function reducer(state: NfState, action: Action): NfState {
       if (state.phase !== 'night' || p === null) return state;
       const spec = nightSpec(state, p);
       let { choices, jokerPlan, suspicions } = state;
-      const [pick] = action.targets;
-      if (spec.kind === 'dummy' && canSuspect(state, p) && action.targets.length === 1 && pick !== p && state.alive[pick]) suspicions = { ...suspicions, [p]: pick };
+      // "Least trusted": the tap itself on a no-action turn, or the optional extra pick on an action turn
+      const suspect = spec.kind === 'dummy' ? (action.targets.length === 1 ? action.targets[0] : undefined) : action.suspect;
+      if (suspect !== undefined && canSuspect(state, p) && suspect !== p && state.alive[suspect]) suspicions = { ...suspicions, [p]: suspect };
       if (spec.kind === 'joker') {
         const plan: JokerPlan = { mode: action.joker?.mode ?? 'keep', targets: action.targets, swap: action.joker?.swap ?? [] };
         jokerPlan = validJokerPlan(state, p, plan) ? plan : { mode: 'keep', targets: [], swap: [] };
@@ -1179,23 +1336,77 @@ export function reducer(state: NfState, action: Action): NfState {
       };
     }
     case 'START_NOMINATIONS':
-      if (state.phase !== 'day') return state;
+      if (state.phase !== 'day' || saintMustAct(state)) return state;
       return { ...state, dayStage: 'nomination' };
+    case 'SAINT_ACT': {
+      if (!saintMustAct(state)) return state;
+      const saint = saintOf(state)!;
+      const { mode, target } = action;
+      const lightSaint = state.roles[saint] === 'saint';
+      if (mode === 'kill') {
+        if (!state.alive[target] || target === saint) return state;
+        const blocked = state.guardedLastNight.includes(target);
+        const saintDies = lightSaint || !TUNING.hereticKeepsLife;
+        const died = dayDeaths(state, [...(blocked ? [] : [target]), ...(saintDies ? [saint] : [])]);
+        const score = { ...died.state.score };
+        if (!blocked) {
+          const s = { ...(score[saint] ?? noScore()) };
+          if (!lightSaint) s.kills += 1;
+          else if (sideOfPlayer(state, target) === 'evil') s.feats += FEAT_POINTS.saintKill;
+          score[saint] = s;
+        }
+        let next: NfState = {
+          ...died.state,
+          score,
+          ghostVote: died.state.ghostVote.map((g, i) => (i === saint && saintDies ? SAINT_GHOST_VOTES : g)),
+          saintUsed: true,
+          saintWatch: { saint, target: blocked ? null : target },
+          events: [...state.events, { k: 'saintKill', saint, target, blocked }, ...died.events],
+          chronicle: dayChron(state, [{ k: 'saintKill', by: saint, target, blocked }, ...died.chron]),
+        };
+        const win = checkWinner(next);
+        if (win) next = { ...next, ...win, winReason: win.winner === 'good' && !blocked && isBossNow(state, target) ? 'nbShot' : win.winReason, phase: 'final' };
+        return next;
+      }
+      if (!state.firstBlood.includes(target) || state.alive[target]) return state;
+      const died = dayDeaths(state, [saint]);
+      const alive = died.state.alive.map((a, i) => (i === target ? true : a));
+      const ghostVote = died.state.ghostVote.map((g, i) => (i === target ? 0 : i === saint ? SAINT_GHOST_VOTES : g));
+      const score = { ...died.state.score };
+      if (lightSaint && sideOfPlayer(state, target) === 'good') score[saint] = { ...(score[saint] ?? noScore()), feats: (score[saint]?.feats ?? 0) + FEAT_POINTS.revive };
+      let next: NfState = {
+        ...died.state,
+        alive,
+        ghostVote,
+        score,
+        saintUsed: true,
+        saintWatch: { saint, target: null },
+        reports: addReport(died.state.reports, target, state.night, { k: 'wasRevived' }),
+        events: [...state.events, { k: 'saintRevive', saint, target }, ...died.events],
+        chronicle: dayChron(state, [{ k: 'saintRevive', by: saint, target }, ...died.chron]),
+      };
+      const win = checkWinner(next);
+      if (win) next = { ...next, ...win, phase: 'final' };
+      return next;
+    }
     case 'NOMINATE': {
       if (state.phase !== 'day' || state.dayStage !== 'nomination') return state;
       const { nominator, nominee } = action;
       const voters = [...new Set(action.voters)];
       if (!state.alive[nominator] || !state.alive[nominee] || nominator === nominee) return state;
       if (state.nominations.some((x) => x.nominator === nominator || x.nominee === nominee)) return state;
-      if (!voters.every((v) => v >= 0 && v < n && (state.alive[v] || state.ghostVote[v]))) return state;
+      if (!voters.every((v) => v >= 0 && v < n && (state.alive[v] || canGhostVote(state, v)))) return state;
       const votes = voters.reduce((acc, v) => acc + voteWeight(state, v), 0);
       const pos = (v: number) => (seatOf(state, v) - seatOf(state, nominee) + n) % n;
       const lastVoter = voters.length ? voters.reduce((a, b) => (pos(b) > pos(a) ? b : a)) : null;
-      const ghostVote = state.ghostVote.map((g, i) => (voters.includes(i) && !state.alive[i] ? false : g));
+      const ghostVote = state.ghostVote.map((g, i) => (voters.includes(i) && !state.alive[i] ? g - 1 : g));
+      const ghostDay = { ...state.ghostDay };
+      for (const v of voters) if (!state.alive[v]) ghostDay[v] = state.night;
       const nomination: Nomination = { nominator, nominee, voters, votes, lastVoter, valid: votes >= voteThreshold(state) };
       return {
         ...state,
         ghostVote,
+        ghostDay,
         nominations: [...state.nominations, nomination],
         chronicle: dayChron(state, [{ k: 'nomination', nominator, nominee, votes, voters, valid: nomination.valid }]),
       };
@@ -1214,7 +1425,8 @@ export function reducer(state: NfState, action: Action): NfState {
       const died = dayDeaths(state, hit ? [target, shooter] : [shooter]);
       let next: NfState = {
         ...died.state,
-        ghostVote: died.state.ghostVote.map((g, i) => (i === shooter ? false : g)),
+        ghostVote: died.state.ghostVote.map((g, i) => (i === shooter ? 0 : g)),
+        score: hit ? { ...died.state.score, [shooter]: { ...(died.state.score[shooter] ?? noScore()), feats: (died.state.score[shooter]?.feats ?? 0) + FEAT_POINTS.nova } } : died.state.score,
         novaUsed: true,
         events: [...state.events, hit ? { k: 'novaHit', shooter, target } : { k: 'novaMiss', shooter, target, died: true }, ...died.events],
         chronicle: dayChron(state, [chron, ...died.chron]),
@@ -1224,7 +1436,7 @@ export function reducer(state: NfState, action: Action): NfState {
       return next;
     }
     case 'END_DAY': {
-      if (state.phase !== 'day') return state;
+      if (state.phase !== 'day' || saintMustAct(state)) return state;
       const valid = state.nominations.filter((x) => x.valid);
       const top = Math.max(0, ...valid.map((x) => x.votes));
       const leaders = valid.filter((x) => x.votes === top);

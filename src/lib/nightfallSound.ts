@@ -260,6 +260,17 @@ export function sfxBell(): void {
   });
 }
 
+/** Someone chose to read their information aloud: a rising drum roll and a bright "spotlight" chord. */
+export function sfxConfession(): void {
+  const a = audio();
+  if (!a) return;
+  const t = a.ctx.currentTime;
+  for (let i = 0; i < 14; i++) noiseBurst(t + i * 0.065, 0.06, { gain: 0.05 + i * 0.018, filter: 'bandpass', freq: 1900, q: 1.4 });
+  [523.25, 659.25, 783.99, 1046.5].forEach((f) => tone(f, t + 0.95, 1.8, { type: 'triangle', gain: 0.1, attack: 0.02 }));
+  tone(2093, t + 0.95, 1.2, { type: 'sine', gain: 0.05, attack: 0.02 });
+  noiseBurst(t + 0.95, 0.6, { gain: 0.12, filter: 'highpass', freq: 5000, q: 0.7 });
+}
+
 /** The day is over and night falls: descending wind, a sinking horn and a deep gong. */
 export function sfxNightfall(): void {
   const a = audio();

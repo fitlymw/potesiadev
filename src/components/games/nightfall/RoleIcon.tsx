@@ -100,6 +100,14 @@ const SYMBOLS: Record<RoleId, (c: string) => ReactNode> = {
       <path d="M19 17 H45 L40 12 M45 27 H19 L24 32" stroke={c} {...stroke} strokeWidth={2.5} />
     </>
   ),
+  saint: (c) => (
+    <>
+      <ellipse cx="32" cy="15" rx="12" ry="4.5" stroke={c} {...stroke} />
+      <circle cx="32" cy="29" r="7" fill={c} />
+      <path d="M17 52 Q19 39 32 39 Q45 39 47 52Z" fill={c} />
+      <path d="M13 22 L9 19 M51 22 L55 19 M11 31 H6 M53 31 H58" stroke={c} {...stroke} strokeWidth={2} />
+    </>
+  ),
   echo: (c) => (
     <>
       <circle cx="20" cy="32" r="4" fill={c} />
@@ -142,6 +150,15 @@ const SYMBOLS: Record<RoleId, (c: string) => ReactNode> = {
     <>
       <path d="M32 50 V30 M32 36 Q22 34 18 24 Q28 22 32 32 M32 30 Q40 26 44 16 Q34 16 32 26" stroke={c} {...stroke} strokeWidth={2.5} />
       <circle cx="17" cy="45" r="2.5" fill={c} /><circle cx="46" cy="40" r="3" fill={c} /><circle cx="24" cy="15" r="2" fill={c} /><circle cx="50" cy="26" r="1.8" fill={c} /><circle cx="42" cy="50" r="2" fill={c} />
+    </>
+  ),
+  heretic: (c) => (
+    <>
+      <path d="M21 16 Q21 11 28 10.5 M36 10.5 Q43 11 43 16 Q43 19 35 20" stroke={c} {...stroke} />
+      <circle cx="32" cy="30" r="7" fill={c} />
+      <path d="M17 52 Q19 40 32 40 Q45 40 47 52Z" fill={c} />
+      <path d="M44 19 Q45 24 44 26" stroke={c} {...stroke} strokeWidth={2} />
+      <circle cx="44" cy="28" r="1.8" fill={c} />
     </>
   ),
   abyss: (c) => (

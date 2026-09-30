@@ -14,3 +14,10 @@ export const TEAM_COLOR: Record<Team, string> = {
   shadow: PALETTE.shadow.ring,
   nightbringer: PALETTE.nightbringer.ring,
 };
+
+/** Tile outline: glowing white for whose turn it is, yellow while the player can still vote. */
+export function seatTileClass(canVote: boolean, isTurn: boolean): string {
+  const border = canVote ? 'border-2 border-yellow-400' : 'border-2 border-zinc-800';
+  const glow = isTurn ? ' outline outline-2 outline-offset-2 outline-white shadow-[0_0_14px_3px_rgba(255,255,255,0.55)]' : '';
+  return `flex items-center px-2 py-1.5 text-sm ${border}${glow}`;
+}

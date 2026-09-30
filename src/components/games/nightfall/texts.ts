@@ -3,7 +3,7 @@
  * morning-report sentences and the end-of-game chronicle (EN + ID).
  */
 import { ROLES, type RoleId } from '@/data/nightfallRoles';
-import { NF_MIN_PLAYERS, NF_MAX_PLAYERS, SETUP_TABLE, TIMING, TIDE_USES, POINTS, setupFor, type Lang, type Mode, type ReportItem, type ChronItem, type Quality, type AttackResult, type Guard } from '@/lib/party/nightfall';
+import { NF_MIN_PLAYERS, NF_MAX_PLAYERS, SETUP_TABLE, TIMING, TIDE_USES, POINTS, FEAT_POINTS, SAINT_GHOST_VOTES, setupFor, type Lang, type Mode, type ReportItem, type ChronItem, type Quality, type AttackResult, type Guard } from '@/lib/party/nightfall';
 
 type ModeText = { name: string; desc: string };
 
@@ -160,6 +160,9 @@ export const UI = {
       crownBurden: (name: string) => `${name} collapsed under the weight of the Joker’s crown.`,
       revived: (name: string) => `${name} has risen from the dead!`,
       apex: 'A tied vote with three players left — the Apex secures the win for the Light side!',
+      saintRevealed: (name: string) => `✨ First blood has fallen — ${name} is revealed as the SAINT! Today, before nominations, the Saint must kill or revive.`,
+      saintKill: (saint: string, t: string, blocked: boolean) => (blocked ? `Saint ${saint} struck at ${t}, but last night’s protection still held. The Saint is gone.` : `Saint ${saint} struck down ${t}. The Saint gave their life for it.`),
+      saintRevive: (saint: string, t: string) => `Saint ${saint} brought ${t} back to life — and gave their own life in return.`,
     },
     alive: 'alive',
     dead: 'dead',
@@ -196,6 +199,22 @@ export const UI = {
     roleBookHint: 'Take a screenshot to share with the group. Every game uses only some of these roles.',
     setupLegend: 'Players: Luminary · Cursed · Shadow · Boss',
     seatMap: 'Seat map',
+    suspectOptional: 'Also: who do you trust the least? (optional — points if they really are Dark)',
+    saintTitle: (name: string): string => `${name} is the SAINT`,
+    saintMust: `First blood has fallen. Before nominations the Saint must choose: kill 1 living player, or bring back a player who died last night. The Saint dies right after (keeping ${SAINT_GHOST_VOTES} ghost votes, at most 1 per day).`,
+    saintKillBtn: 'Kill 1 player',
+    saintReviveBtn: 'Revive a victim',
+    saintConfirm: 'USE THE SAINT’S POWER',
+    saintConfirmAsk: 'Use the Saint’s power now? The Saint will die.',
+    saintWaiting: 'Nominations can start once the Saint has used its power.',
+    statusGhostMany: (n: number): string => `Dead · ${n} ghost votes left`,
+    legendCanVote: 'Yellow ring: can still vote',
+    legendDead: 'Faded: dead',
+    legendTurn: 'White glow: next to take the phone',
+    scoreVotesRight: (n: number): string => `${n} right vote${n === 1 ? '' : 's'}`,
+    scoreVotesWrong: (n: number): string => `${n} wrong vote${n === 1 ? '' : 's'}`,
+    scoreFeats: (n: number): string => `+${n} from abilities`,
+    scoreWin: `win +${POINTS.win}`,
     scoreTitle: 'Points & MVP',
     mvp: 'MVP',
     pts: (n: number): string => `${n} pts`,
@@ -203,7 +222,7 @@ export const UI = {
     scoreSurvived: (n: number): string => `survived ${n} night${n === 1 ? '' : 's'}`,
     scoreKills: (n: number): string => `${n} kill${n === 1 ? '' : 's'}`,
     scoreNone: 'no points',
-    pointsHint: `Light: +${POINTS.suspect} per correct “least trusted” pick. Dark: +${POINTS.survived} per night survived, +${POINTS.kill} per kill (the Joker gets its crown holder’s kills, the Zombie its horde’s kills).`,
+    pointsHint: `Light: +${POINTS.suspect} correct “least trusted” pick, +${POINTS.voteRight} vote for an executed Dark player (${POINTS.voteWrong} for a Light one), ability successes (save +${FEAT_POINTS.save}, Pyre +${FEAT_POINTS.pyre}, Nova +${FEAT_POINTS.nova}, revive +${FEAT_POINTS.revive}, Saint kill +${FEAT_POINTS.saintKill}). Dark: +${POINTS.survived} per night survived, +${POINTS.kill} per kill (Joker: its crown holder’s kills; Zombie: its horde’s kills). Winning side: +${POINTS.win}.`,
     statusAlive: 'Alive',
     statusGhost: 'Dead · ghost vote not used yet',
     statusUsed: 'Dead · ghost vote already used',
@@ -368,6 +387,9 @@ export const UI = {
       crownBurden: (name: string) => `${name} runtuh di bawah beban mahkota Joker.`,
       revived: (name: string) => `${name} bangkit kembali dari kematian!`,
       apex: 'Voting seri saat tersisa tiga pemain — Apex memastikan kemenangan Kubu Terang!',
+      saintRevealed: (name: string) => `✨ First blood telah tumpah — ${name} terungkap sebagai SAINT! Hari ini, sebelum nominasi, Saint wajib membunuh atau menghidupkan kembali.`,
+      saintKill: (saint: string, t: string, blocked: boolean) => (blocked ? `Saint ${saint} menghukum ${t}, tetapi perlindungan semalam masih melindunginya. Saint gugur.` : `Saint ${saint} menghukum ${t} — ${t} tewas. Saint gugur setelah menggunakan kekuatannya.`),
+      saintRevive: (saint: string, t: string) => `Saint ${saint} menghidupkan kembali ${t} — dan menyerahkan nyawanya sebagai gantinya.`,
     },
     alive: 'hidup',
     dead: 'mati',
@@ -404,6 +426,22 @@ export const UI = {
     roleBookHint: 'Ambil screenshot untuk dibagikan ke grup. Setiap permainan hanya memakai sebagian dari peran-peran ini.',
     setupLegend: 'Pemain: Luminary · Cursed · Shadow · Bos',
     seatMap: 'Peta kursi',
+    suspectOptional: 'Tambahan: siapa yang paling tidak kamu percaya? (opsional — dapat poin jika ia benar Kubu Gelap)',
+    saintTitle: (name: string): string => `${name} adalah SAINT`,
+    saintMust: `First blood telah terjadi. Sebelum nominasi, Saint wajib memilih: membunuh 1 pemain yang hidup, atau menghidupkan kembali pemain yang mati tadi malam. Saint langsung gugur setelahnya (dengan ${SAINT_GHOST_VOTES} suara hantu, maksimal 1 per hari).`,
+    saintKillBtn: 'Bunuh 1 pemain',
+    saintReviveBtn: 'Hidupkan korban',
+    saintConfirm: 'GUNAKAN KEKUATAN SAINT',
+    saintConfirmAsk: 'Gunakan kekuatan Saint sekarang? Saint akan gugur.',
+    saintWaiting: 'Nominasi baru bisa dimulai setelah Saint menggunakan kekuatannya.',
+    statusGhostMany: (n: number): string => `Mati · sisa ${n} suara hantu`,
+    legendCanVote: 'Lingkar kuning: masih bisa voting',
+    legendDead: 'Pudar: sudah mati',
+    legendTurn: 'Cahaya putih: giliran pegang HP berikutnya',
+    scoreVotesRight: (n: number): string => `${n} vote tepat`,
+    scoreVotesWrong: (n: number): string => `${n} vote salah`,
+    scoreFeats: (n: number): string => `+${n} dari kemampuan`,
+    scoreWin: `menang +${POINTS.win}`,
     scoreTitle: 'Poin & MVP',
     mvp: 'MVP',
     pts: (n: number): string => `${n} poin`,
@@ -411,7 +449,7 @@ export const UI = {
     scoreSurvived: (n: number): string => `bertahan ${n} malam`,
     scoreKills: (n: number): string => `${n} pembunuhan`,
     scoreNone: 'tanpa poin',
-    pointsHint: `Terang: +${POINTS.suspect} per pilihan “paling tidak dipercaya” yang tepat. Gelap: +${POINTS.survived} per malam bertahan hidup, +${POINTS.kill} per pembunuhan (Joker mendapat poin dari pembunuhan pemegang mahkotanya, Zombie dari pembunuhan gerombolannya).`,
+    pointsHint: `Terang: +${POINTS.suspect} pilihan “paling tidak dipercaya” yang tepat, +${POINTS.voteRight} vote untuk pemain Gelap yang dieksekusi (${POINTS.voteWrong} untuk pemain Terang), kemampuan yang berhasil (menyelamatkan +${FEAT_POINTS.save}, Pyre +${FEAT_POINTS.pyre}, Nova +${FEAT_POINTS.nova}, menghidupkan +${FEAT_POINTS.revive}, pembunuhan Saint +${FEAT_POINTS.saintKill}). Gelap: +${POINTS.survived} per malam bertahan, +${POINTS.kill} per pembunuhan (Joker: pembunuhan pemegang mahkotanya; Zombie: pembunuhan gerombolannya). Kubu pemenang: +${POINTS.win}.`,
     statusAlive: 'Hidup',
     statusGhost: 'Mati · suara hantu belum dipakai',
     statusUsed: 'Mati · suara hantu sudah dipakai',
@@ -443,7 +481,8 @@ export const RULES: Record<Lang, { title: string; items: string[] }[]> = {
     { title: 'Zombie mode', items: ['On odd nights (1, 3, 5…) the Zombie infects a player: they join the Dark side, keep their ability and learn who the Zombie is. Aegis and Tide block infections.', 'If the Zombie dies, the horde enters a Frenzy: on odd nights each infected player picks a kill and the most chosen target dies.'] },
     { title: 'Death', items: ['Dead players stay at the table and may keep talking, but lose their normal vote.', 'Each dead player has one ghost vote to use once for the rest of the game. A Nova who fired is dead completely and has no ghost vote.', 'The seat-map button shows who is alive, who still has a ghost vote and who can no longer vote.'] },
     { title: 'Poison & false information', items: ['A poisoned player’s ability fails that night and the next day: information becomes false, protection and shots fail. A Gouge victim’s information is false until they die.', 'Baiter always reads as Dark; Snare always reads as Light. Trust, but verify.'] },
-    { title: 'Points & MVP', items: [`Light players: on a night with no action you tap the player you trust the least. If that player really is on the Dark side, you get +${POINTS.suspect} points.`, `Nightbringer and Shadows cannot score that way. They get +${POINTS.survived} for every night they survive and +${POINTS.kill} for every kill.`, 'Joker: points for surviving, plus every kill made by its crown holder. Zombie: points for surviving, plus every kill made by its horde.', 'The player with the most points is the MVP.'] },
+    { title: 'Saint & Heretic', items: ['The Saint (Light) has no night action and cannot be poisoned. The day after the first night death, the Oracle reveals the Saint to everyone; before nominations the Saint must kill 1 living player or revive a first-blood victim, and dies right after with 2 ghost votes (max 1 per day).', 'A kill is blocked if the target was protected by Aegis or Tide the night before. When the next player dies, the Saint learns 2 possible roles for them (one Dark, one Light): usually one is true, but 30% of the time both are false.', 'The Heretic (Shadow) works exactly the same and is announced as “the Saint” too — a Saint and a Heretic are never in the same game. Both are Standard-mode only.'] },
+    { title: 'Points & MVP', items: [`Light players: every night you can name who you trust least (it is the tap itself on a no-action night). +${POINTS.suspect} when that player really is Dark.`, `Light players also score +${POINTS.voteRight} for voting for a Dark player who gets executed (${POINTS.voteWrong} for a Light one) and points for abilities that work: saving someone +${FEAT_POINTS.save}, Pyre hitting a Dark player +${FEAT_POINTS.pyre}, Nova hitting the boss +${FEAT_POINTS.nova}, reviving a Light player +${FEAT_POINTS.revive}, a Saint killing a Dark player +${FEAT_POINTS.saintKill}.`, `Dark players: +${POINTS.survived} per night survived and +${POINTS.kill} per kill. The Joker scores its crown holder’s kills, the Zombie its horde’s kills.`, `Everyone on the winning side gets +${POINTS.win}. The player with the most points is the MVP.`] },
     { title: 'After the game', items: ['The chronicle tells the whole story, round by round: every night action, every report, every vote.'] },
   ],
   id: [
@@ -457,7 +496,8 @@ export const RULES: Record<Lang, { title: string; items: string[] }[]> = {
     { title: 'Mode Zombie', items: ['Di malam ganjil (1, 3, 5…) Zombie menginfeksi satu pemain: ia pindah ke Kubu Gelap, tetap punya kemampuannya, dan tahu siapa Zombie. Aegis dan Tide memblokir infeksi.', 'Jika Zombie mati, gerombolan mengamuk (Frenzy): di malam ganjil setiap pemain terinfeksi memilih target, dan target yang paling banyak dipilih mati.'] },
     { title: 'Kematian', items: ['Pemain yang mati tetap di meja dan boleh terus berbicara, tapi kehilangan hak suara biasa.', 'Setiap pemain mati punya satu suara hantu yang bisa dipakai sekali sampai akhir permainan. Nova yang sudah menembak mati total dan tidak punya suara hantu.', 'Tombol peta kursi menunjukkan siapa yang hidup, siapa yang masih punya suara hantu, dan siapa yang sudah tidak bisa voting.'] },
     { title: 'Racun & info palsu', items: ['Kemampuan pemain yang diracun gagal malam itu dan siang berikutnya: informasinya palsu, perlindungan dan tembakannya gagal. Informasi korban Gouge palsu sampai ia mati.', 'Baiter selalu terbaca Gelap; Snare selalu terbaca Terang. Percaya boleh, tapi tetap periksa.'] },
-    { title: 'Poin & MVP', items: [`Pemain Kubu Terang: di malam tanpa aksi kamu mengetuk pemain yang paling tidak kamu percaya. Jika pemain itu benar Kubu Gelap, kamu mendapat +${POINTS.suspect} poin.`, `Nightbringer dan Shadow tidak bisa mendapat poin dengan cara itu. Mereka mendapat +${POINTS.survived} untuk setiap malam bertahan hidup dan +${POINTS.kill} untuk setiap pembunuhan.`, 'Joker: poin dari bertahan hidup, ditambah setiap pembunuhan oleh pemegang mahkotanya. Zombie: poin dari bertahan hidup, ditambah setiap pembunuhan oleh gerombolannya.', 'Pemain dengan poin terbanyak adalah MVP.'] },
+    { title: 'Saint & Heretic', items: ['Saint (Terang) tidak punya aksi malam dan tidak bisa diracun. Siang setelah kematian malam pertama, The Oracle mengumumkan Saint ke semua pemain; sebelum nominasi Saint wajib membunuh 1 pemain yang hidup atau menghidupkan kembali korban first blood, lalu langsung gugur dengan 2 suara hantu (maksimal 1 per hari).', 'Pembunuhan gagal jika targetnya dilindungi Aegis atau Tide pada malam sebelumnya. Saat pemain berikutnya mati, Saint mengetahui 2 kemungkinan perannya (satu Gelap, satu Terang): biasanya salah satunya benar, tapi 30% kemungkinan keduanya salah.', 'Heretic (Shadow) bekerja persis sama dan juga diumumkan sebagai “Saint” — Saint dan Heretic tidak pernah ada di permainan yang sama. Keduanya hanya ada di mode Standar.'] },
+    { title: 'Poin & MVP', items: [`Pemain Kubu Terang: setiap malam kamu bisa menyebut siapa yang paling tidak kamu percaya (di malam tanpa aksi, ketukanmu itulah pilihannya). +${POINTS.suspect} jika pemain itu benar Kubu Gelap.`, `Pemain Terang juga mendapat +${POINTS.voteRight} karena memilih pemain Gelap yang akhirnya dieksekusi (${POINTS.voteWrong} untuk pemain Terang) dan poin dari kemampuan yang berhasil: menyelamatkan +${FEAT_POINTS.save}, Pyre mengenai pemain Gelap +${FEAT_POINTS.pyre}, Nova mengenai bos +${FEAT_POINTS.nova}, menghidupkan pemain Terang +${FEAT_POINTS.revive}, Saint membunuh pemain Gelap +${FEAT_POINTS.saintKill}.`, `Pemain Kubu Gelap: +${POINTS.survived} per malam bertahan hidup dan +${POINTS.kill} per pembunuhan. Joker mendapat poin dari pembunuhan pemegang mahkotanya, Zombie dari pembunuhan gerombolannya.`, `Semua pemain di kubu pemenang mendapat +${POINTS.win}. Pemain dengan poin terbanyak adalah MVP.`] },
     { title: 'Setelah permainan', items: ['Kronik menceritakan seluruh kisah ronde demi ronde: setiap aksi malam, setiap laporan, setiap voting.'] },
   ],
 };
@@ -548,6 +588,10 @@ export function reportLine(item: ReportItem, names: string[], lang: Lang): strin
         : id ? `Infeksi terhadap ${n(item.target)} gagal.` : `Infecting ${n(item.target)} failed.`;
     case 'hiveGrew':
       return id ? `${n(item.target)} bergabung dengan gerombolan.` : `${n(item.target)} joined the horde.`;
+    case 'saintVision':
+      return id
+        ? `Penglihatan Saint: ${n(item.target)} mungkin ${role(item.dark)} (Kubu Gelap) atau ${role(item.light)} (Kubu Terang). Hati-hati — bisa jadi keduanya salah.`
+        : `Saint’s vision: ${n(item.target)} may be the ${role(item.dark)} (Dark) or the ${role(item.light)} (Light). Careful — both may be false.`;
     case 'jokerSight': {
       const side = (x: 'left' | 'right') => (id ? (x === 'left' ? 'kiri' : 'kanan') : x);
       const parts = item.seen.map((x) => (id ? `tetangga ${side(x.side)} ${n(x.player)} = ${role(x.role)}` : `${side(x.side)} neighbour ${n(x.player)} = ${role(x.role)}`));
@@ -588,6 +632,7 @@ export function chronicleLine(item: ChronItem, names: string[], roles: RoleId[],
         ? `Kubu Gelap saling mengenal: Nightbringer ${who(item.boss)}${item.shadows.length ? `, Shadow ${item.shadows.map(who).join(', ')}` : ''}.`
         : `The Dark side met: Nightbringer ${who(item.boss)}${item.shadows.length ? `, Shadows ${item.shadows.map(who).join(', ')}` : ''}.`;
     case 'poison':
+      if (item.immune) return id ? `${who(item.by)} mencoba meracuni ${who(item.target)}, tapi ia kebal racun.` : `${who(item.by)} tried to poison ${who(item.target)}, who is immune.`;
       return id ? `${who(item.by)} meracuni ${n(item.target)}.` : `${who(item.by)} poisoned ${n(item.target)}.`;
     case 'protect':
       return item.ok
@@ -705,6 +750,20 @@ export function chronicleLine(item: ChronItem, names: string[], roles: RoleId[],
       return id
         ? `${who(item.by)} melihat ${item.seen.map((x) => `${n(x.player)} = ${role(x.role)} (${x.real ? 'benar' : 'palsu'})`).join(', ')}.`
         : `${who(item.by)} saw ${item.seen.map((x) => `${n(x.player)} = ${role(x.role)} (${x.real ? 'true' : 'false'})`).join(', ')}.`;
+    case 'saintRevealed':
+      return id ? `${who(item.player)} diumumkan ke semua pemain sebagai Saint.` : `${who(item.player)} was announced to everyone as the Saint.`;
+    case 'saintKill':
+      return item.blocked
+        ? id ? `${who(item.by)} menghukum ${n(item.target)}, tapi perlindungan semalam menyelamatkannya; Saint gugur.` : `${who(item.by)} struck at ${n(item.target)}, but last night’s protection held; the Saint died.`
+        : id ? `${who(item.by)} membunuh ${who(item.target)} lalu gugur.` : `${who(item.by)} killed ${who(item.target)} and then died.`;
+    case 'saintRevive':
+      return id ? `${who(item.by)} menghidupkan kembali ${who(item.target)} lalu gugur.` : `${who(item.by)} revived ${who(item.target)} and then died.`;
+    case 'saintVision': {
+      const truth = item.real === 'none' ? (id ? 'keduanya salah' : 'both false') : `${id ? 'benar' : 'true'}: ${role(item.real === 'dark' ? item.dark : item.light)}`;
+      return id
+        ? `${who(item.by)} melihat ${n(item.target)} mungkin ${role(item.dark)} atau ${role(item.light)} (${truth}).`
+        : `${who(item.by)} saw that ${n(item.target)} may be the ${role(item.dark)} or the ${role(item.light)} (${truth}).`;
+    }
     case 'suspicion':
       return id ? `${who(item.p)} paling tidak mempercayai ${n(item.target)} — tepat, ia Kubu Gelap!` : `${who(item.p)} trusted ${n(item.target)} the least — rightly, they are Dark!`;
     case 'apex':

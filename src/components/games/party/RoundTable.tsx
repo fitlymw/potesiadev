@@ -18,6 +18,10 @@ export interface RoundTableProps {
   ring?: (string | null)[];
   /** A small marker next to each seat (e.g. a ghost for a dead player). */
   marks?: (string | null)[];
+  /** Seat opacity (e.g. 0.3 for dead players); rings stay fully visible. */
+  opacity?: number[];
+  /** Seat with a glowing white outline (whose turn it is). */
+  glow?: number | null;
   /** Two lines in the middle of the table (replaces the default legend). */
   center?: [string, string];
   /** Makes seats tappable. */
@@ -29,7 +33,7 @@ export interface RoundTableProps {
  * Round table seen from above. Seat 1 is at the bottom (nearest to whoever
  * holds the phone); "to the left" of a seated player is clockwise from above.
  */
-export function RoundTable({ players, startsLabel, colors, hideNames, dim, ring, marks, center, onSeat, disabledSeats }: RoundTableProps) {
+export function RoundTable({ players, startsLabel, colors, hideNames, dim, ring, marks, opacity, glow, center, onSeat, disabledSeats }: RoundTableProps) {
   const n = players.length;
   const c = 160;
   const angle = (k: number) => ((90 + (360 / n) * k) * Math.PI) / 180;
@@ -38,6 +42,12 @@ export function RoundTable({ players, startsLabel, colors, hideNames, dim, ring,
   const label = hideNames ? players.map((_, i) => `${i + 1}`).join(', ') : players.map((p, i) => `${i + 1}. ${p}`).join(', ');
   return (
     <svg viewBox="0 0 320 320" className="w-full max-w-[320px] mx-auto block" role="img" aria-label={label}>
+      <defs>
+        <filter id="seat-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3.5" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
       <circle cx={c} cy={c} r={56} fill="#2a1438" stroke="#7c3aed" strokeWidth={2} />
       <circle cx={c} cy={c} r={80} fill="none" stroke="#4c1d95" strokeWidth={1} strokeDasharray="3 5" />
       {players.map((_, k) => {
@@ -52,14 +62,17 @@ export function RoundTable({ players, startsLabel, colors, hideNames, dim, ring,
         // Names sit above seats in the top half and below the others, always
         // centred on the seat so they never run off the sides of the drawing
         const above = Math.sin(angle(k)) < -0.3;
-        const [lx, ly] = [sx, above ? sy - 24 : sy + 31];
+        const [lx, ly] = [sx, above ? sy - 31 : sy + 37];
         const fill = colors?.[k] ?? (dim?.[k] ? '#52525b' : PLAYER_COLORS[k]);
         const disabled = disabledSeats?.[k] ?? false;
         const seat = (
           <>
-            {ring?.[k] && <circle cx={sx} cy={sy} r={22} fill="none" stroke={ring[k]!} strokeWidth={3} />}
-            <circle cx={sx} cy={sy} r={17} fill={fill} opacity={disabled ? 0.35 : 1} stroke={k === 0 && !onSeat ? '#fff' : 'none'} strokeWidth={3} />
-            <text x={sx} y={sy + 5} textAnchor="middle" fontSize="15" fontWeight="bold" fill="#0e0716">{k + 1}</text>
+            {glow === k && <circle cx={sx} cy={sy} r={26} fill="none" stroke="#ffffff" strokeWidth={3} filter="url(#seat-glow)" />}
+            {ring?.[k] && <circle cx={sx} cy={sy} r={21} fill="none" stroke={ring[k]!} strokeWidth={3} />}
+            <g opacity={disabled ? 0.35 : opacity?.[k] ?? 1}>
+              <circle cx={sx} cy={sy} r={17} fill={fill} stroke={k === 0 && !onSeat && glow === undefined ? '#fff' : 'none'} strokeWidth={3} />
+              <text x={sx} y={sy + 5} textAnchor="middle" fontSize="15" fontWeight="bold" fill="#0e0716">{k + 1}</text>
+            </g>
             {marks?.[k] && <text x={sx + 15} y={sy - 10} textAnchor="middle" fontSize="13">{marks[k]}</text>}
             {!hideNames && <text x={lx} y={ly} textAnchor="middle" fontSize="12" fill={dim?.[k] ? '#a1a1aa' : '#f5f3ff'} textDecoration={dim?.[k] ? 'line-through' : undefined}>{short(name)}</text>}
           </>
