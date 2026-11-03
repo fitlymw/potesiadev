@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useReducer, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, HelpCircle, X, Plus, Trash2, EyeOff, Eye, Star, Trophy, Users, Lightbulb, RotateCcw, Drama, Timer, Play, Pause, Vote, AlertTriangle } from 'lucide-react';
 import { useGamification } from '@/context/GamificationContext';
 import { RoundTable } from '@/components/games/party/RoundTable';
 import { PLAYER_COLORS } from '@/components/games/party/colors';
+import { Confetti } from '@/components/games/party/Confetti';
+import { CountUp } from '@/components/games/party/CountUp';
+import { SfxMuteButton } from '@/components/games/party/SfxMuteButton';
 import { EMOTION_SCENARIOS, CATEGORY_LABEL, type EmotionScenario } from '@/data/emotionScenarios';
 import {
   reducer,
@@ -31,12 +34,43 @@ import {
   type DifficultySetting,
   type GameState,
   type Lang,
+  type ImpostorRound,
+  type RoundResult,
+  type FinalStats,
 } from '@/lib/party/emotionImpostor';
+import {
+  buzz,
+  sfxBar,
+  sfxCardFlip,
+  sfxCardHide,
+  sfxCaught,
+  sfxCitizensWin,
+  sfxCoins,
+  sfxDrop,
+  sfxDrumroll,
+  sfxDunDun,
+  sfxFinale,
+  sfxHeartbeat,
+  sfxImpostorWins,
+  sfxLockIn,
+  sfxMiss,
+  sfxPop,
+  sfxSelect,
+  sfxShuffle,
+  sfxSparkle,
+  sfxSpotlight,
+  sfxStartGame,
+  sfxTick,
+  sfxTimeUp,
+  sfxTimerStart,
+  sfxWhoosh,
+} from '@/lib/emotionSound';
 
 const STORAGE_KEY = 'emotion-impostor-game';
 const SCENARIO_BY_ID = Object.fromEntries(EMOTION_SCENARIOS.map((s) => [s.id, s])) as Record<string, EmotionScenario>;
 const PIXEL = { fontFamily: '"Press Start 2P", cursive' };
 const DISCUSSION_SECONDS = 90;
+const CONFETTI_COLORS = ['#fb923c', '#f472b6', '#facc15', '#34d399', '#60a5fa', '#c084fc'];
 
 const UI = {
   en: {
@@ -154,6 +188,14 @@ const UI = {
     newPlayers: 'NEW PLAYERS',
     backToGames: 'Back to games',
     confirmExit: 'Leave the game? Progress will be lost.',
+    sfxMute: 'Mute sound effects',
+    sfxUnmute: 'Turn sound effects on',
+    speaking: 'speaking',
+    nextSpeaker: 'NEXT SPEAKER ▶',
+    lastSpeakerDone: 'DONE — START THE DISCUSSION',
+    allSpoke: 'Everyone gave a clue — time to discuss!',
+    counting: 'Counting the votes…',
+    voteSent: 'VOTED ✓',
   },
   id: {
     title: 'EMOTION IMPOSTOR',
@@ -270,6 +312,14 @@ const UI = {
     newPlayers: 'PEMAIN BARU',
     backToGames: 'Kembali ke games',
     confirmExit: 'Keluar dari permainan? Progres akan hilang.',
+    sfxMute: 'Matikan efek suara',
+    sfxUnmute: 'Nyalakan efek suara',
+    speaking: 'bicara',
+    nextSpeaker: 'PEMBICARA BERIKUTNYA ▶',
+    lastSpeakerDone: 'SELESAI — MULAI DISKUSI',
+    allSpoke: 'Semua sudah memberi petunjuk — saatnya diskusi!',
+    counting: 'Menghitung suara…',
+    voteSent: 'TERPILIH ✓',
   },
 };
 
@@ -327,6 +377,27 @@ function HowToContent({ lang }: { lang: Lang }) {
   );
 }
 
+const EMOJI_MASKS = ['🎭', '😊', '😢', '😡', '😱', '🥹', '😏'];
+
+/** Decorative emotion faces drifting behind the start screen. */
+function FloatingMasks() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+      {EMOJI_MASKS.map((m, i) => (
+        <motion.span
+          key={i}
+          className="absolute text-3xl opacity-20 select-none"
+          style={{ left: `${6 + i * 13}%`, top: `${8 + ((i * 37) % 70)}%` }}
+          animate={{ y: [0, -18, 0], rotate: [0, i % 2 ? 12 : -12, 0] }}
+          transition={{ duration: 3 + (i % 3), repeat: Infinity, ease: 'easeInOut', delay: i * 0.3 }}
+        >
+          {m}
+        </motion.span>
+      ))}
+    </div>
+  );
+}
+
 function DiscussionTimer({ label, startLabel, pauseLabel, resetLabel }: { label: string; startLabel: string; pauseLabel: string; resetLabel: string }) {
   const [remaining, setRemaining] = useState(DISCUSSION_SECONDS);
   const [running, setRunning] = useState(false);
@@ -343,20 +414,404 @@ function DiscussionTimer({ label, startLabel, pauseLabel, resetLabel }: { label:
     }, 1000);
     return () => clearInterval(id);
   }, [running]);
+  useEffect(() => {
+    if (running && remaining <= 10 && remaining > 0) sfxTick(remaining <= 5);
+  }, [remaining, running]);
+  useEffect(() => {
+    if (remaining === 0) {
+      sfxTimeUp();
+      buzz([200, 100, 200]);
+    }
+  }, [remaining]);
   const mm = Math.floor(remaining / 60);
   const ss = String(remaining % 60).padStart(2, '0');
+  const urgent = remaining <= 10;
   return (
-    <div className="border border-rose-500/30 bg-black/30 p-3 flex items-center gap-3">
-      <Timer className="w-5 h-5 text-orange-300" />
-      <div className="flex-1">
-        <p className="text-rose-200/70 text-xs">{label}</p>
-        <p className={`text-2xl font-bold ${remaining === 0 ? 'text-red-400' : 'text-rose-50'}`}>{mm}:{ss}</p>
+    <motion.div
+      className={`border p-3 ${remaining === 0 ? 'border-red-500 bg-red-500/10' : 'border-rose-500/30 bg-black/30'}`}
+      animate={remaining === 0 ? { x: [0, -8, 8, -6, 6, -3, 3, 0] } : { x: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <div className="flex items-center gap-3">
+        <motion.span animate={running ? { rotate: [0, 15, -15, 0] } : { rotate: 0 }} transition={{ duration: 1, repeat: running ? Infinity : 0 }}>
+          <Timer className="w-5 h-5 text-orange-300" />
+        </motion.span>
+        <div className="flex-1">
+          <p className="text-rose-200/70 text-xs">{label}</p>
+          <motion.p
+            key={urgent && running ? remaining : 'calm'}
+            initial={urgent && running ? { scale: 1.25 } : false}
+            animate={{ scale: 1 }}
+            className={`text-2xl font-bold ${remaining === 0 || urgent ? 'text-red-400' : 'text-rose-50'}`}
+          >
+            {mm}:{ss}
+          </motion.p>
+        </div>
+        <button
+          onClick={() => {
+            if (!running) sfxTimerStart();
+            setRunning((r) => !r);
+          }}
+          disabled={remaining === 0}
+          className="px-3 py-2 border border-orange-400/60 text-orange-200 text-sm flex items-center gap-1 disabled:opacity-40"
+        >
+          {running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}{running ? pauseLabel : startLabel}
+        </button>
+        <button onClick={() => { setRunning(false); setRemaining(DISCUSSION_SECONDS); }} className="px-3 py-2 border border-rose-600/50 text-rose-200 text-sm">{resetLabel}</button>
       </div>
-      <button onClick={() => setRunning((r) => !r)} disabled={remaining === 0} className="px-3 py-2 border border-orange-400/60 text-orange-200 text-sm flex items-center gap-1 disabled:opacity-40">
-        {running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}{running ? pauseLabel : startLabel}
-      </button>
-      <button onClick={() => { setRunning(false); setRemaining(DISCUSSION_SECONDS); }} className="px-3 py-2 border border-rose-600/50 text-rose-200 text-sm">{resetLabel}</button>
+      <div className="h-1.5 mt-3 bg-black/50">
+        <motion.div className={`h-full ${urgent ? 'bg-red-500' : 'bg-orange-400'}`} animate={{ width: `${(remaining / DISCUSSION_SECONDS) * 100}%` }} transition={{ duration: 0.9, ease: 'linear' }} />
+      </div>
+    </motion.div>
+  );
+}
+
+/** The secret role card: it flips over while pressed. The back is only rendered while held. */
+function RoleCard({ holding, front, back, impostor }: { holding: boolean; front: React.ReactNode; back: React.ReactNode; impostor: boolean }) {
+  const face = { gridArea: '1 / 1', backfaceVisibility: 'hidden' as const, WebkitBackfaceVisibility: 'hidden' as const };
+  return (
+    <div style={{ perspective: 1200 }}>
+      <motion.div className="grid" style={{ transformStyle: 'preserve-3d' }} animate={{ rotateY: holding ? 180 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
+        <div style={face} className="min-h-[300px] border-2 border-dashed border-orange-400/60 bg-black/40 p-5 flex flex-col items-center justify-center text-center">
+          {front}
+        </div>
+        <motion.div
+          style={{ ...face, rotateY: 180 }}
+          className={`min-h-[300px] border-2 p-5 flex flex-col items-center justify-center text-center ${impostor ? 'border-red-500 bg-red-950/40 shadow-[0_0_30px_rgba(239,68,68,0.35)]' : 'border-emerald-400 bg-emerald-950/30 shadow-[0_0_30px_rgba(52,211,153,0.3)]'}`}
+          animate={holding && impostor ? { x: [0, -3, 3, -2, 2, 0] } : { x: 0 }}
+          transition={{ duration: 0.4, repeat: holding && impostor ? Infinity : 0, repeatDelay: 1.4 }}
+        >
+          {holding ? back : null}
+        </motion.div>
+      </motion.div>
     </div>
+  );
+}
+
+/** Speaking order with a spotlight that moves to the next speaker. */
+function SpeakerSpotlight({ order, players, t }: { order: number[]; players: string[]; t: (typeof UI)['en'] }) {
+  const [speaker, setSpeaker] = useState(0);
+  const done = speaker >= order.length;
+  return (
+    <div className="space-y-2">
+      <ol className="space-y-1.5">
+        {order.map((p, i) => (
+          <motion.li
+            key={p}
+            initial={{ opacity: 0, x: -14 }}
+            animate={{ opacity: i < speaker ? 0.45 : 1, x: 0, scale: i === speaker ? 1.03 : 1 }}
+            transition={{ delay: i * 0.06 }}
+            className="relative flex items-center gap-3 text-sm px-2 py-1.5"
+          >
+            {i === speaker && (
+              <motion.span layoutId="ei-spotlight" className="absolute inset-0 border-2 border-orange-300 bg-orange-500/15 shadow-[0_0_18px_rgba(251,146,60,0.45)]" transition={{ type: 'spring', stiffness: 300, damping: 28 }} />
+            )}
+            <span className="relative w-7 h-7 shrink-0 rounded-full flex items-center justify-center font-bold text-[#160a0e]" style={{ background: PLAYER_COLORS[p] }}>{i < speaker ? '✓' : i + 1}</span>
+            <span className="relative text-rose-50">{players[p]}</span>
+            {i === speaker && (
+              <motion.span className="relative ml-auto text-orange-300 text-xs" animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 1.2 }}>🎤 {t.speaking}</motion.span>
+            )}
+          </motion.li>
+        ))}
+      </ol>
+      {done ? (
+        <motion.p initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center text-emerald-300 text-sm font-bold">{t.allSpoke}</motion.p>
+      ) : (
+        <motion.button whileTap={{ scale: 0.96 }} onClick={() => { sfxSpotlight(); setSpeaker((s) => s + 1); }} className="w-full py-2.5 border border-orange-400/60 text-orange-200 text-sm">
+          {speaker === order.length - 1 ? t.lastSpeakerDone : t.nextSpeaker}
+        </motion.button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Plays timed cues once a screen shows; leaving the screen cancels the ones still
+ * pending (even the instant ones go through a timer, so StrictMode's double mount
+ * plays them once).
+ */
+function scheduleCues(cues: [number, () => void][]): () => void {
+  const ids = cues.map(([ms, play]) => window.setTimeout(play, ms));
+  return () => ids.forEach((id) => window.clearTimeout(id));
+}
+
+/** Voting results with a drum roll, growing bars and a dramatic verdict. */
+function TallyScreen({ round, n, players, t, roundLabel, primaryBtn, onReveal }: { round: ImpostorRound; n: number; players: string[]; t: (typeof UI)['en']; roundLabel: string; primaryBtn: string; onReveal: () => void }) {
+  const tl = tally(round, n);
+  const rows = tl.counts.map((c, p) => ({ c, p })).sort((a, b) => b.c - a.c);
+  const max = Math.max(1, ...tl.counts);
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    const result = tally(round, n);
+    const bars = result.counts.length;
+    const cues: [number, () => void][] = [[0, () => sfxDrumroll(1.6)], [1700, () => setStage(1)]];
+    for (let i = 0; i < bars; i++) cues.push([1750 + i * 220, () => sfxBar(i)]);
+    cues.push([
+      1900 + bars * 220,
+      () => {
+        setStage(2);
+        if (result.accused === null) sfxMiss();
+        else {
+          sfxDunDun();
+          buzz([80, 60, 160]);
+        }
+      },
+    ]);
+    return scheduleCues(cues);
+  }, [round, n]);
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      <p className="text-rose-300/70 text-xs text-center" style={PIXEL}>{roundLabel}</p>
+      <h2 className="text-orange-300 text-sm text-center" style={PIXEL}>{t.tallyTitle}</h2>
+      {stage === 0 ? (
+        <motion.div className="py-12 text-center" animate={{ scale: [1, 1.06, 1] }} transition={{ duration: 0.4, repeat: Infinity }}>
+          <p className="text-5xl mb-3">🥁</p>
+          <p className="text-rose-100">{t.counting}</p>
+        </motion.div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map(({ c, p }, i) => (
+            <motion.div key={p} className="flex items-center gap-3 text-sm" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.22 }}>
+              <span className="w-24 truncate" style={{ color: PLAYER_COLORS[p] }}>{players[p]}</span>
+              <div className="flex-1 h-4 bg-black/40 border border-rose-800/50 overflow-hidden">
+                <motion.div className="h-full" style={{ background: PLAYER_COLORS[p] }} initial={{ width: 0 }} animate={{ width: `${(c / max) * 100}%` }} transition={{ delay: i * 0.22, duration: 0.5, ease: 'easeOut' }} />
+              </div>
+              <span className="w-16 text-right text-rose-200/80">{t.votes(c)}</span>
+            </motion.div>
+          ))}
+        </div>
+      )}
+      <AnimatePresence>
+        {stage === 2 && (
+          <motion.div key="verdict" className="space-y-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <motion.p initial={{ scale: 1.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 16 }} className="text-center text-lg font-bold">
+              {tl.accused !== null ? t.accused(players[tl.accused]) : t.tie}
+            </motion.p>
+            <motion.button whileTap={{ scale: 0.97 }} animate={{ boxShadow: ['0 0 0 rgba(251,146,60,0)', '0 0 22px rgba(251,146,60,0.55)', '0 0 0 rgba(251,146,60,0)'] }} transition={{ duration: 1.6, repeat: Infinity }} onClick={onReveal} className={primaryBtn} style={PIXEL}>
+              {tl.accused !== null ? t.revealRole(players[tl.accused]) : t.revealImpostor}
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/** The caught Impostor's last chance: heartbeat, red pulse, four options. */
+function LastChanceScreen({ round, lang, t, roundLabel, impostorName, onPick }: { round: ImpostorRound; lang: Lang; t: (typeof UI)['en']; roundLabel: string; impostorName: string; onPick: (id: string) => void }) {
+  useEffect(() => {
+    const stopFirst = scheduleCues([[0, sfxHeartbeat]]);
+    const id = window.setInterval(sfxHeartbeat, 1100);
+    return () => {
+      stopFirst();
+      window.clearInterval(id);
+    };
+  }, []);
+  return (
+    <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
+      <motion.div className="fixed inset-0 pointer-events-none" style={{ boxShadow: 'inset 0 0 140px rgba(239,68,68,0.5)' }} animate={{ opacity: [0.25, 0.9, 0.25] }} transition={{ duration: 1.1, repeat: Infinity }} aria-hidden="true" />
+      <p className="text-rose-300/70 text-xs text-center" style={PIXEL}>{roundLabel}</p>
+      <motion.div className="w-fit mx-auto" animate={{ scale: [1, 1.18, 1] }} transition={{ duration: 1.1, repeat: Infinity }}>
+        <AlertTriangle className="w-12 h-12 text-red-400" />
+      </motion.div>
+      <motion.h2 initial={{ scale: 1.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 240, damping: 15 }} className="text-xl font-bold text-center text-red-300">{t.caughtTitle(impostorName)}</motion.h2>
+      <p className="text-rose-100/90 text-sm text-center">{t.lastChanceHint(impostorName)}</p>
+      <div className="space-y-2">
+        {round.lastChanceOptions.map((id, i) => (
+          <motion.button
+            key={id}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 + i * 0.12 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => { sfxLockIn(); buzz(40); onPick(id); }}
+            className="w-full text-left px-3 py-3 border border-rose-600/50 text-rose-50 text-sm hover:border-orange-400 bg-black/30"
+          >
+            {SCENARIO_BY_ID[id].text[lang]}
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function RevealScreen(props: {
+  state: GameState;
+  round: ImpostorRound;
+  scenario: EmotionScenario;
+  result: RoundResult;
+  t: (typeof UI)['en'];
+  roundLabel: string;
+  impostorName: string;
+  primaryBtn: string;
+  onBestClue: (player: number | null) => void;
+  onNext: () => void;
+}) {
+  const { state, round, scenario, result, t, roundLabel, impostorName, primaryBtn, onBestClue, onNext } = props;
+  const isLast = state.rounds.length >= state.roundsTotal;
+  const fact = FACTS[(state.rounds.length - 1) % FACTS.length];
+  // The outcome is fixed for this screen (picking a best clue only changes the points)
+  const firstResult = useRef(result);
+  useEffect(() => {
+    const r = firstResult.current;
+    const coins: [number, () => void] = [0, () => sfxCoins(r.points.filter((x) => x > 0).length, 2)];
+    if (r.citizensWin) {
+      return scheduleCues([[0, () => { sfxCaught(); buzz([60, 40, 60, 40, 200]); }], [450, sfxCitizensWin], coins]);
+    }
+    return scheduleCues([
+      [0, () => { if (r.outcome === 'escaped') sfxMiss(); buzz([300, 120, 300]); }],
+      [r.outcome === 'escaped' ? 1200 : 150, sfxImpostorWins],
+      coins,
+    ]);
+  }, []);
+  const banner =
+    result.outcome === 'caught'
+      ? t.outcome.caught
+      : result.outcome === 'caughtButGuessed'
+        ? t.outcome.caughtButGuessed
+        : result.tally.accused === null
+          ? t.outcome.escapedTie
+          : t.outcome.escapedWrong(state.players[result.tally.accused]);
+  const pointRows = result.points.map((pts, p) => ({ pts, p })).sort((a, b) => b.pts - a.pts);
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      {result.citizensWin && <Confetti key={`round-${state.rounds.length}`} colors={CONFETTI_COLORS} />}
+      <p className="text-rose-300/70 text-xs text-center" style={PIXEL}>{roundLabel}</p>
+      <motion.div
+        initial={{ scale: 1.7, opacity: 0, rotate: result.citizensWin ? 0 : -3 }}
+        animate={result.citizensWin ? { scale: 1, opacity: 1, rotate: 0 } : { scale: 1, opacity: 1, rotate: 0, x: [0, -6, 6, -4, 4, 0] }}
+        transition={{ type: 'spring', stiffness: 220, damping: 14, x: { delay: 0.5, duration: 0.5 } }}
+        className={`border-2 p-4 text-center ${result.citizensWin ? 'border-emerald-400 bg-emerald-500/10' : 'border-red-400 bg-red-500/10'}`}
+      >
+        <p className="text-3xl mb-1">{result.citizensWin ? '🎉' : '😈'}</p>
+        <p className="text-lg font-bold">{banner}</p>
+      </motion.div>
+      <div className="border border-rose-500/30 bg-black/30 p-4 space-y-3">
+        <p className="text-sm flex items-center gap-2">
+          <span className="text-rose-300/70">{t.theImpostor}: </span>
+          <span style={{ perspective: 600 }} className="inline-block">
+            <motion.b className="inline-block" style={{ color: PLAYER_COLORS[round.impostor] }} initial={{ rotateX: 90, opacity: 0 }} animate={{ rotateX: 0, opacity: 1 }} transition={{ delay: 0.5, duration: 0.5 }}>
+              🎭 {impostorName}
+            </motion.b>
+          </span>
+        </p>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
+          <p className="text-rose-300/70 text-sm">{t.theSituation} · {CATEGORY_LABEL[scenario.category][state.lang]}</p>
+          <p className="text-rose-50">{scenario.text[state.lang]}</p>
+        </motion.div>
+        <motion.p initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 1 }}>
+          <span className="text-rose-300/70 text-sm">{t.emotion}: </span><span className="text-orange-200 font-bold">{scenario.emotion[state.lang]}</span>
+        </motion.p>
+        {round.lastGuess && (
+          <p className={`text-sm ${round.lastGuess === round.scenarioId ? 'text-red-300' : 'text-emerald-300'}`}>{t.lastGuessWas(SCENARIO_BY_ID[round.lastGuess].text[state.lang])}</p>
+        )}
+      </div>
+      <div className="border border-rose-500/30 bg-black/30 p-3">
+        <p className="text-orange-300 text-xs mb-2">{t.whoVoted}</p>
+        <ul className="space-y-1 text-sm">
+          {Object.entries(round.votes).map(([voter, s], i) => (
+            <motion.li key={voter} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.1 + i * 0.08 }}>
+              <span style={{ color: PLAYER_COLORS[Number(voter)] }}>{state.players[Number(voter)]}</span>
+              <span className="text-rose-300/60"> → </span>
+              <span className={s === round.impostor ? 'font-bold text-emerald-300' : 'text-rose-100'}>{state.players[s]}{s === round.impostor ? ' ✓' : ''}</span>
+            </motion.li>
+          ))}
+        </ul>
+      </div>
+      <div className="border border-rose-500/30 bg-black/30 p-3">
+        <p className="text-rose-50 text-sm mb-2">{t.bestClueTitle}</p>
+        <div className="flex flex-wrap gap-1.5">
+          {state.players.map((name, p) => (
+            <motion.button
+              key={p}
+              whileTap={{ scale: 0.92 }}
+              animate={round.bestClue === p ? { scale: [1, 1.18, 1] } : { scale: 1 }}
+              onClick={() => {
+                if (round.bestClue !== p) sfxSparkle();
+                onBestClue(round.bestClue === p ? null : p);
+              }}
+              className={`px-2.5 py-1.5 text-xs border ${round.bestClue === p ? 'text-black font-bold' : 'text-rose-100 border-rose-600/50'}`}
+              style={round.bestClue === p ? { background: PLAYER_COLORS[p], borderColor: PLAYER_COLORS[p] } : undefined}
+            >
+              {round.bestClue === p ? '⭐ ' : ''}{name}
+            </motion.button>
+          ))}
+          {round.bestClue !== null && (
+            <button onClick={() => onBestClue(null)} className="px-2.5 py-1.5 text-xs border border-rose-700 text-rose-300">{t.skip}</button>
+          )}
+        </div>
+      </div>
+      <div className="border border-rose-500/30 bg-black/30 p-3">
+        <p className="text-orange-300 text-xs mb-2 flex items-center gap-2"><Trophy className="w-4 h-4" />{t.roundPoints}</p>
+        <ul className="space-y-1 text-sm">
+          {pointRows.map(({ pts, p }, i) => (
+            <motion.li key={p} className="flex justify-between" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.8 + i * 0.14 }}>
+              <span style={{ color: PLAYER_COLORS[p] }}>{state.players[p]}</span>
+              <b><CountUp value={pts} prefix="+" delay={2 + i * 0.14} duration={0.6} /></b>
+            </motion.li>
+          ))}
+        </ul>
+      </div>
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 2.4 }} className="border border-amber-400/30 bg-amber-500/5 p-3">
+        <p className="text-amber-300 text-xs mb-1 flex items-center gap-2"><Lightbulb className="w-4 h-4" />{t.didYouKnow}</p>
+        <p className="text-rose-50/85 text-sm leading-relaxed">{fact[state.lang]}</p>
+      </motion.div>
+      <motion.button whileTap={{ scale: 0.97 }} onClick={onNext} className={primaryBtn} style={PIXEL}>
+        {isLast ? t.seeFinal : t.nextRound}
+      </motion.button>
+    </motion.div>
+  );
+}
+
+function FinalScreen({ state, stats, t, primaryBtn, onPlayAgain, onNewPlayers }: { state: GameState; stats: FinalStats; t: (typeof UI)['en']; primaryBtn: string; onPlayAgain: () => void; onNewPlayers: () => void }) {
+  useEffect(() => scheduleCues([[0, () => { sfxFinale(); buzz([100, 80, 100, 80, 300]); }]]), []);
+  const nameList = (ids: number[]) => (ids.length ? ids.map((i) => state.players[i]).join(', ') : t.none);
+  const awards: [string, string, number[]][] = [
+    ['🕵️', t.awards.detective, stats.emotionDetective],
+    ['🎭', t.awards.actor, stats.bestActor],
+    ['💡', t.awards.clue, stats.bestClue],
+  ];
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      <Confetti key="final" colors={CONFETTI_COLORS} count={90} />
+      <motion.h2 initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 14 }} className="text-center text-orange-300 text-sm" style={PIXEL}>{t.finalTitle}</motion.h2>
+      <div className="space-y-2">
+        {stats.players.map((p, rank) => (
+          <motion.div
+            key={p.player}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 + rank * 0.15, type: 'spring', stiffness: 220, damping: 20 }}
+            className={`flex items-center gap-3 border p-3 ${rank === 0 ? 'border-orange-400 bg-orange-500/10' : 'border-rose-600/40 bg-black/30'}`}
+          >
+            {rank === 0 ? (
+              <motion.span animate={{ y: [0, -5, 0], rotate: [0, -8, 8, 0] }} transition={{ duration: 1.4, repeat: Infinity }} className="w-6 text-center">
+                <Trophy className="w-5 h-5 text-amber-300" />
+              </motion.span>
+            ) : (
+              <span className="w-6 text-center text-rose-300" style={PIXEL}>{rank + 1}</span>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-bold truncate" style={{ color: PLAYER_COLORS[p.player] }}>{state.players[p.player]}</p>
+              <p className="text-xs text-rose-200/80">{t.stats(p.correctVotes, p.impostorWins)}</p>
+            </div>
+            <span className="text-lg font-bold"><CountUp value={p.total} delay={0.4 + rank * 0.15} /></span>
+          </motion.div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {awards.map(([icon, label, ids], i) => (
+          <motion.div key={label} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.9 + i * 0.15, type: 'spring', stiffness: 260, damping: 18 }} className="border border-rose-600/40 bg-black/30 p-3">
+            <p className="text-rose-300/70 text-xs">{icon} {label}</p>
+            <p className="font-bold text-sm">{nameList(ids)}</p>
+          </motion.div>
+        ))}
+      </div>
+      <motion.button whileTap={{ scale: 0.97 }} onClick={onPlayAgain} className={`${primaryBtn} flex items-center justify-center gap-2`} style={PIXEL}>
+        <RotateCcw className="w-4 h-4" />{t.playAgain}
+      </motion.button>
+      <button onClick={onNewPlayers} className="w-full py-3 border border-rose-500/50 text-rose-200 text-[10px]" style={PIXEL}>{t.newPlayers}</button>
+    </motion.div>
   );
 }
 
@@ -387,6 +842,7 @@ export function EmotionImpostor() {
   const [holding, setHolding] = useState(false);
   const [seenOnce, setSeenOnce] = useState(false);
   const [suspect, setSuspect] = useState<number | null>(null);
+  const [stamping, setStamping] = useState(false);
   const [expAwarded, setExpAwarded] = useState(false);
   const t = UI[state.lang];
   const round = currentRound(state);
@@ -411,6 +867,18 @@ export function EmotionImpostor() {
     return () => { lock?.release().catch(() => {}); };
   }, [inGame]);
 
+  // Screen-change sounds (skipped on the very first render, e.g. after a reload)
+  const screenKey = `${state.phase}-${state.lap}-${state.turn}`;
+  const firstScreen = useRef(true);
+  useEffect(() => {
+    if (firstScreen.current) {
+      firstScreen.current = false;
+      return;
+    }
+    if (state.phase === 'pass') sfxWhoosh();
+    else if (state.phase === 'clues') sfxSpotlight();
+  }, [screenKey, state.phase]);
+
   const result = useMemo(() => (round && state.phase === 'reveal' ? roundResult(round, n) : null), [round, state.phase, n]);
   const stats = useMemo(() => (state.phase === 'final' ? finalStats(state) : null), [state]);
 
@@ -422,14 +890,17 @@ export function EmotionImpostor() {
 
   const arrangeSeats = (list: string[], rounds: number, level: DifficultySetting) => {
     if (validatePlayers(list) !== null) return;
+    sfxShuffle();
     const seats = shuffleSeats(list);
     dispatch({ type: 'ARRANGE', players: seats, roundsTotal: rounds, difficulty: level, impostorOrder: shuffle(seats.map((_, i) => i)) });
   };
 
   const openSecretScreen = () => {
+    sfxPop();
     setHolding(false);
     setSeenOnce(false);
     setSuspect(null);
+    setStamping(false);
     dispatch({ type: 'CONFIRM_PASS' });
   };
 
@@ -440,34 +911,46 @@ export function EmotionImpostor() {
   };
 
   const shell = (children: React.ReactNode) => (
-    <div className="fixed inset-0 z-50 bg-[#160a0e] text-rose-50 overflow-auto font-sans">
-      <div className="absolute inset-0 pointer-events-none opacity-10"><div className="scanlines h-full w-full" /></div>
-      <div className="relative z-10 min-h-full flex flex-col items-center px-4 pt-4 pb-12">
-        <div className="w-full max-w-xl flex items-center justify-between mb-4">
-          <button onClick={exit} className="p-2 border border-rose-500/40 text-rose-300 hover:bg-rose-500/10" aria-label={t.backToGames}><ArrowLeft className="w-5 h-5" /></button>
-          <span className="text-orange-300 text-[10px] sm:text-xs" style={PIXEL}>{t.title}</span>
-          {state.phase !== 'howto' ? (
-            <button onClick={() => setShowHelp(true)} className="p-2 border border-rose-500/40 text-rose-300 hover:bg-rose-500/10" aria-label={t.howAgain}><HelpCircle className="w-5 h-5" /></button>
-          ) : (
-            <span className="w-9" />
-          )}
-        </div>
-        <div className="w-full max-w-xl">{children}</div>
-      </div>
-      <AnimatePresence>
-        {showHelp && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/85 overflow-auto p-4 flex justify-center">
-            <div className="w-full max-w-xl bg-[#221016] border border-orange-500/40 p-5 h-fit">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-orange-300 text-xs" style={PIXEL}>{t.howTitle}</h2>
-                <button onClick={() => setShowHelp(false)} className="p-1 text-rose-300" aria-label="close"><X className="w-5 h-5" /></button>
-              </div>
-              <HowToContent lang={state.lang} />
+    <MotionConfig reducedMotion="user">
+      <div className="fixed inset-0 z-50 bg-[#160a0e] text-rose-50 overflow-auto font-sans">
+        <div className="absolute inset-0 pointer-events-none opacity-10"><div className="scanlines h-full w-full" /></div>
+        <div className="relative z-10 min-h-full flex flex-col items-center px-4 pt-4 pb-12">
+          <div className="w-full max-w-xl flex items-center justify-between mb-4">
+            <button onClick={exit} className="p-2 border border-rose-500/40 text-rose-300 hover:bg-rose-500/10" aria-label={t.backToGames}><ArrowLeft className="w-5 h-5" /></button>
+            <span className="text-orange-300 text-[10px] sm:text-xs" style={PIXEL}>{t.title}</span>
+            <div className="flex gap-1.5">
+              <SfxMuteButton className="p-2 border border-rose-500/40 text-rose-300 hover:bg-rose-500/10" labels={{ mute: t.sfxMute, unmute: t.sfxUnmute }} />
+              {state.phase !== 'howto' && (
+                <button onClick={() => setShowHelp(true)} className="p-2 border border-rose-500/40 text-rose-300 hover:bg-rose-500/10" aria-label={t.howAgain}><HelpCircle className="w-5 h-5" /></button>
+              )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          </div>
+          <div className="w-full max-w-xl">{children}</div>
+        </div>
+        <AnimatePresence>
+          {showHelp && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/85 overflow-auto p-4 flex justify-center">
+              <motion.div initial={{ y: 30, scale: 0.96 }} animate={{ y: 0, scale: 1 }} className="w-full max-w-xl bg-[#221016] border border-orange-500/40 p-5 h-fit">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-orange-300 text-xs" style={PIXEL}>{t.howTitle}</h2>
+                  <button onClick={() => setShowHelp(false)} className="p-1 text-rose-300" aria-label="close"><X className="w-5 h-5" /></button>
+                </div>
+                <HowToContent lang={state.lang} />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {stamping && (
+            <motion.div key="stamp" className="fixed inset-0 z-[58] flex items-center justify-center pointer-events-none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <motion.span initial={{ scale: 2.4, rotate: -20, opacity: 0 }} animate={{ scale: 1, rotate: -8, opacity: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 18 }} className="border-4 border-orange-300 bg-[#160a0e]/90 text-orange-200 px-6 py-3 text-lg" style={PIXEL}>
+                {t.voteSent}
+              </motion.span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </MotionConfig>
   );
 
   const primaryBtn = 'w-full py-4 border-2 border-orange-400 bg-orange-500/15 text-orange-100 text-[10px] sm:text-xs disabled:opacity-40';
@@ -475,22 +958,25 @@ export function EmotionImpostor() {
   // ==================== HOW TO PLAY ====================
   if (state.phase === 'howto') {
     return shell(
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center">
-        <Drama className="w-14 h-14 text-orange-400 mb-3" strokeWidth={1.5} />
-        <h1 className="text-lg sm:text-2xl text-orange-300 mb-2 text-center" style={PIXEL}>{t.title}</h1>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="relative flex flex-col items-center">
+        <FloatingMasks />
+        <motion.div animate={{ rotate: [0, -10, 10, -5, 0], scale: [1, 1.08, 1] }} transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 1.2 }}>
+          <Drama className="w-14 h-14 text-orange-400 mb-3" strokeWidth={1.5} />
+        </motion.div>
+        <motion.h1 initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 14 }} className="text-lg sm:text-2xl text-orange-300 mb-2 text-center" style={PIXEL}>{t.title}</motion.h1>
         <p className="text-rose-200/70 text-sm mb-4 text-center">{t.tagline}</p>
         <div className="flex gap-2 mb-5">
           {(['id', 'en'] as Lang[]).map((l) => (
-            <button key={l} onClick={() => dispatch({ type: 'SET_LANG', lang: l })} className={`px-4 py-2 border text-[10px] ${state.lang === l ? 'border-orange-400 bg-orange-500/20 text-orange-100' : 'border-rose-700 text-rose-400'}`} style={PIXEL}>
+            <motion.button whileTap={{ scale: 0.92 }} key={l} onClick={() => { sfxSelect(); dispatch({ type: 'SET_LANG', lang: l }); }} className={`px-4 py-2 border text-[10px] ${state.lang === l ? 'border-orange-400 bg-orange-500/20 text-orange-100' : 'border-rose-700 text-rose-400'}`} style={PIXEL}>
               {l === 'id' ? 'INDONESIA' : 'ENGLISH'}
-            </button>
+            </motion.button>
           ))}
         </div>
-        <div className="w-full border border-orange-500/30 bg-rose-950/30 p-4 sm:p-5 mb-5">
+        <div className="relative w-full border border-orange-500/30 bg-rose-950/60 p-4 sm:p-5 mb-5">
           <h2 className="text-orange-300 text-xs mb-4" style={PIXEL}>{t.howTitle}</h2>
           <HowToContent lang={state.lang} />
         </div>
-        <button onClick={() => dispatch({ type: 'SHOW_SETUP' })} className={primaryBtn} style={PIXEL}>{t.toSetup}</button>
+        <motion.button whileTap={{ scale: 0.97 }} animate={{ boxShadow: ['0 0 0 rgba(251,146,60,0)', '0 0 20px rgba(251,146,60,0.5)', '0 0 0 rgba(251,146,60,0)'] }} transition={{ duration: 2, repeat: Infinity }} onClick={() => { sfxPop(); dispatch({ type: 'SHOW_SETUP' }); }} className={`relative ${primaryBtn}`} style={PIXEL}>{t.toSetup}</motion.button>
       </motion.div>
     );
   }
@@ -504,39 +990,44 @@ export function EmotionImpostor() {
         <h1 className="text-orange-300 text-sm mb-1 flex items-center gap-2" style={PIXEL}><Users className="w-5 h-5" />{t.setupTitle}</h1>
         <p className="text-rose-200/70 text-sm mb-4">{t.setupHint}</p>
         <div className="space-y-2 mb-3">
-          {names.map((name, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <input
-                value={name}
-                maxLength={16}
-                onChange={(e) => { const value = e.target.value; setNames((prev) => prev.map((x, j) => (j === i ? value : x))); }}
-                placeholder={t.playerPlaceholder(i)}
-                className="flex-1 min-w-0 bg-black/40 border border-rose-600/50 px-3 py-2.5 text-rose-50 outline-none focus:border-orange-400"
-              />
-              {names.length > MIN_PLAYERS && (
-                <button onClick={() => setNames((prev) => prev.filter((_, j) => j !== i))} className="p-2 text-rose-400 hover:text-red-400" aria-label="remove"><Trash2 className="w-4 h-4" /></button>
-              )}
-            </div>
-          ))}
+          <AnimatePresence initial={false}>
+            {names.map((name, i) => (
+              <motion.div key={i} layout initial={{ opacity: 0, x: -20, height: 0 }} animate={{ opacity: 1, x: 0, height: 'auto' }} exit={{ opacity: 0, x: 30, height: 0 }} className="flex gap-2 items-center">
+                <span className="w-6 h-6 shrink-0 rounded-full text-[10px] font-bold flex items-center justify-center text-[#160a0e]" style={{ background: PLAYER_COLORS[i] }}>{i + 1}</span>
+                <input
+                  value={name}
+                  maxLength={16}
+                  onChange={(e) => { const value = e.target.value; setNames((prev) => prev.map((x, j) => (j === i ? value : x))); }}
+                  placeholder={t.playerPlaceholder(i)}
+                  className="flex-1 min-w-0 bg-black/40 border border-rose-600/50 px-3 py-2.5 text-rose-50 outline-none focus:border-orange-400"
+                />
+                {names.length > MIN_PLAYERS && (
+                  <button onClick={() => { sfxDrop(); setNames((prev) => prev.filter((_, j) => j !== i)); }} className="p-2 text-rose-400 hover:text-red-400" aria-label="remove"><Trash2 className="w-4 h-4" /></button>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
         {names.length < MAX_PLAYERS && (
-          <button onClick={() => setNames((prev) => [...prev, ''])} className="flex items-center gap-2 text-sm text-orange-300 mb-4"><Plus className="w-4 h-4" />{t.addPlayer}</button>
+          <motion.button whileTap={{ scale: 0.95 }} onClick={() => { sfxPop(); setNames((prev) => [...prev, '']); }} className="flex items-center gap-2 text-sm text-orange-300 mb-4"><Plus className="w-4 h-4" />{t.addPlayer}</motion.button>
         )}
         <p className="text-rose-200/80 text-sm mb-2">{t.roundsLabel}</p>
         <div className="flex gap-2 mb-4">
           {ROUND_OPTIONS.map((r) => (
-            <button key={r} onClick={() => setRoundsTotal(r)} className={`flex-1 py-2.5 border text-sm ${roundsTotal === r ? 'border-orange-400 bg-orange-500/20 text-orange-100 font-bold' : 'border-rose-600/50 text-rose-200'}`}>{r}</button>
+            <motion.button whileTap={{ scale: 0.94 }} key={r} onClick={() => { sfxSelect(); setRoundsTotal(r); }} className={`flex-1 py-2.5 border text-sm ${roundsTotal === r ? 'border-orange-400 bg-orange-500/20 text-orange-100 font-bold' : 'border-rose-600/50 text-rose-200'}`}>{r}</motion.button>
           ))}
         </div>
         <p className="text-rose-200/80 text-sm mb-2">{t.difficultyLabel}</p>
         <div className="grid grid-cols-4 gap-2 mb-1">
           {DIFFICULTY_OPTIONS.map((d) => (
-            <button key={d} onClick={() => setDifficulty(d)} className={`py-2.5 border text-sm ${difficulty === d ? 'border-orange-400 bg-orange-500/20 text-orange-100 font-bold' : 'border-rose-600/50 text-rose-200'}`}>{t.difficulty[d]}</button>
+            <motion.button whileTap={{ scale: 0.94 }} key={d} onClick={() => { sfxSelect(); setDifficulty(d); }} className={`py-2.5 border text-sm ${difficulty === d ? 'border-orange-400 bg-orange-500/20 text-orange-100 font-bold' : 'border-rose-600/50 text-rose-200'}`}>{t.difficulty[d]}</motion.button>
           ))}
         </div>
-        <p className="text-rose-200/60 text-xs mb-4">{t.difficultyHint[difficulty]}</p>
-        {showError && <p className="text-amber-300 text-sm mb-3">{t.errors[error]}</p>}
-        <button disabled={error !== null} onClick={() => arrangeSeats(names, roundsTotal, difficulty)} className={primaryBtn} style={PIXEL}>{t.shuffleSeats}</button>
+        <AnimatePresence mode="wait">
+          <motion.p key={difficulty} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-rose-200/60 text-xs mb-4">{t.difficultyHint[difficulty]}</motion.p>
+        </AnimatePresence>
+        {showError && <motion.p initial={{ x: -6 }} animate={{ x: 0 }} className="text-amber-300 text-sm mb-3">{t.errors[error]}</motion.p>}
+        <motion.button whileTap={{ scale: 0.97 }} disabled={error !== null} onClick={() => arrangeSeats(names, roundsTotal, difficulty)} className={primaryBtn} style={PIXEL}>{t.shuffleSeats}</motion.button>
         <button onClick={() => dispatch({ type: 'SHOW_HOWTO' })} className="w-full mt-3 py-2 text-sm text-rose-300 flex items-center justify-center gap-2"><HelpCircle className="w-4 h-4" />{t.howAgain}</button>
       </motion.div>
     );
@@ -549,20 +1040,20 @@ export function EmotionImpostor() {
       <motion.div key={state.players.join('|')} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
         <h1 className="text-orange-300 text-sm flex items-center gap-2" style={PIXEL}><Users className="w-5 h-5" />{t.seatingTitle}</h1>
         <p className="text-rose-100/90 text-sm leading-relaxed">{t.seatingIntro(first)}</p>
-        <div className="border border-rose-500/30 bg-black/30 p-3">
+        <motion.div initial={{ scale: 0.8, rotate: -25, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 160, damping: 16 }} className="border border-rose-500/30 bg-black/30 p-3">
           <RoundTable players={state.players} startsLabel={t.seatingStarts} />
           <p className="text-center text-rose-300/50 text-[11px] mt-1">{t.seatingView}</p>
-        </div>
+        </motion.div>
         <ol className="space-y-1.5">
           {state.players.map((name, i) => (
-            <li key={i} className="flex items-center gap-3 text-sm">
+            <motion.li key={i} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.08 }} className="flex items-center gap-3 text-sm">
               <span className="w-7 h-7 shrink-0 rounded-full flex items-center justify-center font-bold text-[#160a0e]" style={{ background: PLAYER_COLORS[i] }}>{i + 1}</span>
               <span className="text-rose-50">{i === 0 ? <><b>{name}</b> — {t.seatingStarts}</> : t.seatingLeftOf(name, state.players[i - 1])}</span>
-            </li>
+            </motion.li>
           ))}
         </ol>
         <p className="text-rose-200/70 text-sm">{t.seatingPass}</p>
-        <button onClick={() => { setExpAwarded(false); dispatch({ type: 'START', scenarioId: nextScenario() }); }} className={primaryBtn} style={PIXEL}>{t.seated}</button>
+        <motion.button whileTap={{ scale: 0.97 }} onClick={() => { sfxStartGame(); buzz([40, 30, 80]); setExpAwarded(false); dispatch({ type: 'START', scenarioId: nextScenario() }); }} className={primaryBtn} style={PIXEL}>{t.seated}</motion.button>
         <button onClick={() => arrangeSeats(state.players, state.roundsTotal, state.difficulty)} className="w-full py-3 border border-rose-500/50 text-rose-200 text-[10px] flex items-center justify-center gap-2" style={PIXEL}><RotateCcw className="w-4 h-4" />{t.reshuffle}</button>
       </motion.div>
     );
@@ -576,13 +1067,15 @@ export function EmotionImpostor() {
   if (state.phase === 'pass') {
     const player = pendingPlayer(state)!;
     return shell(
-      <motion.div key={`${state.lap}-${player}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center pt-6">
+      <motion.div key={`${state.lap}-${player}`} initial={{ opacity: 0, x: 60 }} animate={{ opacity: 1, x: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 24 }} className="flex flex-col items-center text-center pt-6">
         <p className="text-rose-300/70 text-xs mb-6" style={PIXEL}>{roundLabel}</p>
         <p className="text-rose-200 mb-2">{t.passTo}</p>
-        <p className="text-3xl sm:text-4xl font-bold mb-4 break-all" style={{ color: PLAYER_COLORS[player] }}>{state.players[player]}</p>
+        <motion.p initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.15, type: 'spring', stiffness: 300, damping: 14 }} className="text-3xl sm:text-4xl font-bold mb-4 break-all" style={{ color: PLAYER_COLORS[player] }}>{state.players[player]}</motion.p>
         <p className="text-rose-200/80 text-sm mb-10 max-w-sm">{state.lap === 'role' ? t.passRoleHint : t.passVoteHint}</p>
-        <EyeOff className="w-12 h-12 text-rose-500/60 mb-10" />
-        <button onClick={openSecretScreen} className="w-full py-4 border-2 text-sm font-bold" style={{ borderColor: PLAYER_COLORS[player], color: PLAYER_COLORS[player] }}>{t.imReady(state.players[player])}</button>
+        <motion.div animate={{ opacity: [0.35, 1, 0.35], scale: [1, 1.08, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+          <EyeOff className="w-12 h-12 text-rose-500/70 mb-10" />
+        </motion.div>
+        <motion.button whileTap={{ scale: 0.96 }} onClick={openSecretScreen} className="w-full py-4 border-2 text-sm font-bold" style={{ borderColor: PLAYER_COLORS[player], color: PLAYER_COLORS[player] }}>{t.imReady(state.players[player])}</motion.button>
       </motion.div>
     );
   }
@@ -591,8 +1084,48 @@ export function EmotionImpostor() {
   if (state.phase === 'role') {
     const player = pendingPlayer(state)!;
     const isImpostor = player === round.impostor;
-    const show = () => { setHolding(true); setSeenOnce(true); };
-    const hide = () => setHolding(false);
+    // Same sound and vibration for every role, so the table cannot hear who is the Impostor
+    const show = () => {
+      if (!holding) {
+        sfxCardFlip();
+        buzz(15);
+      }
+      setHolding(true);
+      setSeenOnce(true);
+    };
+    const hide = () => {
+      if (holding) sfxCardHide();
+      setHolding(false);
+    };
+    const front = (
+      <>
+        <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 1.6, repeat: Infinity }}>
+          <Eye className="w-12 h-12 text-orange-300 mb-4" />
+        </motion.div>
+        <p className="text-orange-200 text-[10px] sm:text-xs leading-relaxed" style={PIXEL}>{t.holdToSee}</p>
+      </>
+    );
+    const back = isImpostor ? (
+      <div className="space-y-4">
+        <AlertTriangle className="w-12 h-12 text-red-400 mx-auto" />
+        <p className="text-2xl font-bold text-red-300">{t.youAreImpostor}</p>
+        <p className="text-rose-100"><span className="text-rose-300/70 text-sm">{t.category}:</span><br /><span className="text-xl font-bold">{CATEGORY_LABEL[scenario.category][state.lang]}</span></p>
+        <p className="text-rose-200/80 text-sm leading-relaxed">{t.impostorTip}</p>
+      </div>
+    ) : (
+      <div className="space-y-4">
+        <p className="text-2xl font-bold text-emerald-300">{t.youAreCitizen}</p>
+        <div>
+          <p className="text-rose-300/70 text-sm">{t.situation}</p>
+          <p className="text-rose-50 text-lg leading-snug">{scenario.text[state.lang]}</p>
+        </div>
+        <div>
+          <p className="text-rose-300/70 text-sm">{t.emotion}</p>
+          <p className="text-orange-200 text-2xl font-bold">{scenario.emotion[state.lang]}</p>
+        </div>
+        <p className="text-rose-200/80 text-sm leading-relaxed">{t.citizenTip}</p>
+      </div>
+    );
     return shell(
       <motion.div key={`role-${player}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
         <div className="flex items-center justify-between text-xs">
@@ -610,39 +1143,12 @@ export function EmotionImpostor() {
           onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') show(); }}
           onKeyUp={hide}
           onContextMenu={(e) => e.preventDefault()}
-          className="min-h-[300px] border-2 border-dashed border-orange-400/60 bg-black/40 p-5 flex flex-col items-center justify-center text-center select-none touch-none cursor-pointer"
+          className="select-none touch-none cursor-pointer"
         >
-          {holding ? (
-            isImpostor ? (
-              <div className="space-y-4">
-                <AlertTriangle className="w-12 h-12 text-red-400 mx-auto" />
-                <p className="text-2xl font-bold text-red-300">{t.youAreImpostor}</p>
-                <p className="text-rose-100"><span className="text-rose-300/70 text-sm">{t.category}:</span><br /><span className="text-xl font-bold">{CATEGORY_LABEL[scenario.category][state.lang]}</span></p>
-                <p className="text-rose-200/80 text-sm leading-relaxed">{t.impostorTip}</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-2xl font-bold text-emerald-300">{t.youAreCitizen}</p>
-                <div>
-                  <p className="text-rose-300/70 text-sm">{t.situation}</p>
-                  <p className="text-rose-50 text-lg leading-snug">{scenario.text[state.lang]}</p>
-                </div>
-                <div>
-                  <p className="text-rose-300/70 text-sm">{t.emotion}</p>
-                  <p className="text-orange-200 text-2xl font-bold">{scenario.emotion[state.lang]}</p>
-                </div>
-                <p className="text-rose-200/80 text-sm leading-relaxed">{t.citizenTip}</p>
-              </div>
-            )
-          ) : (
-            <>
-              <Eye className="w-12 h-12 text-orange-300 mb-4" />
-              <p className="text-orange-200 text-[10px] sm:text-xs leading-relaxed" style={PIXEL}>{t.holdToSee}</p>
-            </>
-          )}
+          <RoleCard holding={holding} front={front} back={back} impostor={isImpostor} />
         </div>
         <p className="text-rose-300/60 text-xs text-center">{holding ? t.releaseToHide : !seenOnce ? t.holdFirst : ' '}</p>
-        <button disabled={!seenOnce || holding} onClick={() => dispatch({ type: 'ROLE_SEEN' })} className={primaryBtn} style={PIXEL}>{t.seenPass}</button>
+        <motion.button whileTap={{ scale: 0.97 }} disabled={!seenOnce || holding} onClick={() => { sfxLockIn(); buzz(25); dispatch({ type: 'ROLE_SEEN' }); }} className={primaryBtn} style={PIXEL}>{t.seenPass}</motion.button>
       </motion.div>
     );
   }
@@ -653,21 +1159,14 @@ export function EmotionImpostor() {
     return shell(
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
         <p className="text-rose-300/70 text-xs text-center" style={PIXEL}>{roundLabel}</p>
-        <h2 className="text-orange-300 text-sm flex items-center gap-2" style={PIXEL}><Drama className="w-5 h-5" />{t.cluesTitle2}</h2>
+        <motion.h2 initial={{ scale: 1.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 15 }} className="text-orange-300 text-sm flex items-center gap-2" style={PIXEL}><Drama className="w-5 h-5" />{t.cluesTitle2}</motion.h2>
         <p className="text-rose-100/90 text-sm">{t.cluesIntro}</p>
-        <ol className="space-y-1.5">
-          {order.map((p, i) => (
-            <li key={p} className="flex items-center gap-3 text-sm">
-              <span className="w-7 h-7 shrink-0 rounded-full flex items-center justify-center font-bold text-[#160a0e]" style={{ background: PLAYER_COLORS[p] }}>{i + 1}</span>
-              <span className="text-rose-50">{state.players[p]}</span>
-            </li>
-          ))}
-        </ol>
+        <SpeakerSpotlight key={`spot-${state.rounds.length}`} order={order} players={state.players} t={t} />
         <div className="border border-rose-500/30 bg-rose-950/30 p-3">
           <ul className="list-disc pl-5 space-y-1 text-sm text-rose-100/85">{t.clueRules.map((r, i) => <li key={i}>{r}</li>)}</ul>
         </div>
         <DiscussionTimer label={t.discussion} startLabel={t.start} pauseLabel={t.pause} resetLabel={t.reset} />
-        <button onClick={() => dispatch({ type: 'BEGIN_VOTING' })} className={primaryBtn} style={PIXEL}>{t.beginVoting(state.players[round.starter])}</button>
+        <motion.button whileTap={{ scale: 0.97 }} onClick={() => dispatch({ type: 'BEGIN_VOTING' })} className={primaryBtn} style={PIXEL}>{t.beginVoting(state.players[round.starter])}</motion.button>
       </motion.div>
     );
   }
@@ -675,6 +1174,18 @@ export function EmotionImpostor() {
   // ==================== SECRET VOTE ====================
   if (state.phase === 'vote') {
     const voter = pendingPlayer(state)!;
+    const confirmVote = () => {
+      if (suspect === null || stamping) return;
+      // Same stamp, sound and vibration for every vote
+      sfxLockIn();
+      buzz(30);
+      setStamping(true);
+      const choice = suspect;
+      window.setTimeout(() => {
+        setStamping(false);
+        dispatch({ type: 'SUBMIT_VOTE', suspect: choice });
+      }, 650);
+    };
     return shell(
       <motion.div key={`vote-${voter}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
         <div className="flex items-center justify-between text-xs">
@@ -686,18 +1197,20 @@ export function EmotionImpostor() {
         <div className="grid grid-cols-2 gap-2">
           {state.players.map((name, p) =>
             p === voter ? null : (
-              <button
+              <motion.button
                 key={p}
-                onClick={() => setSuspect(p)}
+                whileTap={{ scale: 0.93 }}
+                animate={suspect === p ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+                onClick={() => { sfxSelect(); setSuspect(p); }}
                 className={`py-3 px-2 border text-sm truncate ${suspect === p ? 'text-black font-bold' : 'border-rose-600/50 text-rose-100'}`}
                 style={suspect === p ? { background: PLAYER_COLORS[p], borderColor: PLAYER_COLORS[p] } : undefined}
               >
                 {name}
-              </button>
+              </motion.button>
             )
           )}
         </div>
-        <button disabled={suspect === null} onClick={() => suspect !== null && dispatch({ type: 'SUBMIT_VOTE', suspect })} className={primaryBtn} style={PIXEL}>{t.voteConfirm}</button>
+        <motion.button whileTap={{ scale: 0.97 }} disabled={suspect === null || stamping} onClick={confirmVote} className={primaryBtn} style={PIXEL}>{t.voteConfirm}</motion.button>
       </motion.div>
     );
   }
@@ -705,175 +1218,56 @@ export function EmotionImpostor() {
   // ==================== TALLY (table) ====================
   if (state.phase === 'tally') {
     const tl = tally(round, n);
-    const max = Math.max(1, ...tl.counts);
-    return shell(
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-        <p className="text-rose-300/70 text-xs text-center" style={PIXEL}>{roundLabel}</p>
-        <h2 className="text-orange-300 text-sm text-center" style={PIXEL}>{t.tallyTitle}</h2>
-        <div className="space-y-2">
-          {tl.counts.map((c, p) => ({ c, p })).sort((a, b) => b.c - a.c).map(({ c, p }) => (
-            <div key={p} className="flex items-center gap-3 text-sm">
-              <span className="w-24 truncate" style={{ color: PLAYER_COLORS[p] }}>{state.players[p]}</span>
-              <div className="flex-1 h-4 bg-black/40 border border-rose-800/50">
-                <div className="h-full" style={{ width: `${(c / max) * 100}%`, background: PLAYER_COLORS[p] }} />
-              </div>
-              <span className="w-16 text-right text-rose-200/80">{t.votes(c)}</span>
-            </div>
-          ))}
-        </div>
-        <p className="text-center text-lg font-bold">{tl.accused !== null ? t.accused(state.players[tl.accused]) : t.tie}</p>
-        {tl.caught ? (
-          <button onClick={() => dispatch({ type: 'OPEN_LAST_CHANCE', options: lastChanceOptions(EMOTION_SCENARIOS, round.scenarioId) })} className={primaryBtn} style={PIXEL}>{t.revealRole(state.players[tl.accused!])}</button>
-        ) : (
-          <button onClick={() => dispatch({ type: 'FINISH_TALLY' })} className={primaryBtn} style={PIXEL}>{tl.accused !== null ? t.revealRole(state.players[tl.accused]) : t.revealImpostor}</button>
-        )}
-      </motion.div>
-    );
+    const reveal = () => {
+      sfxPop();
+      if (tl.caught) dispatch({ type: 'OPEN_LAST_CHANCE', options: lastChanceOptions(EMOTION_SCENARIOS, round.scenarioId) });
+      else dispatch({ type: 'FINISH_TALLY' });
+    };
+    return shell(<TallyScreen key={`tally-${state.rounds.length}`} round={round} n={n} players={state.players} t={t} roundLabel={roundLabel} primaryBtn={primaryBtn} onReveal={reveal} />);
   }
 
   // ==================== IMPOSTOR'S LAST CHANCE (table) ====================
   if (state.phase === 'lastChance') {
-    return shell(
-      <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
-        <p className="text-rose-300/70 text-xs text-center" style={PIXEL}>{roundLabel}</p>
-        <AlertTriangle className="w-12 h-12 text-red-400 mx-auto" />
-        <h2 className="text-xl font-bold text-center text-red-300">{t.caughtTitle(impostorName)}</h2>
-        <p className="text-rose-100/90 text-sm text-center">{t.lastChanceHint(impostorName)}</p>
-        <div className="space-y-2">
-          {round.lastChanceOptions.map((id) => (
-            <button key={id} onClick={() => dispatch({ type: 'SUBMIT_LAST_GUESS', scenarioId: id })} className="w-full text-left px-3 py-3 border border-rose-600/50 text-rose-50 text-sm hover:border-orange-400">
-              {SCENARIO_BY_ID[id].text[state.lang]}
-            </button>
-          ))}
-        </div>
-      </motion.div>
-    );
+    return shell(<LastChanceScreen round={round} lang={state.lang} t={t} roundLabel={roundLabel} impostorName={impostorName} onPick={(id) => dispatch({ type: 'SUBMIT_LAST_GUESS', scenarioId: id })} />);
   }
 
   // ==================== REVEAL ====================
   if (state.phase === 'reveal' && result) {
     const isLast = state.rounds.length >= state.roundsTotal;
-    const fact = FACTS[(state.rounds.length - 1) % FACTS.length];
-    const banner =
-      result.outcome === 'caught'
-        ? t.outcome.caught
-        : result.outcome === 'caughtButGuessed'
-          ? t.outcome.caughtButGuessed
-          : result.tally.accused === null
-            ? t.outcome.escapedTie
-            : t.outcome.escapedWrong(state.players[result.tally.accused]);
     return shell(
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-        <p className="text-rose-300/70 text-xs text-center" style={PIXEL}>{roundLabel}</p>
-        <div className={`border-2 p-4 text-center ${result.citizensWin ? 'border-emerald-400 bg-emerald-500/10' : 'border-red-400 bg-red-500/10'}`}>
-          <p className="text-lg font-bold">{banner}</p>
-        </div>
-        <div className="border border-rose-500/30 bg-black/30 p-4 space-y-3">
-          <p className="text-sm"><span className="text-rose-300/70">{t.theImpostor}: </span><b style={{ color: PLAYER_COLORS[round.impostor] }}>{impostorName}</b></p>
-          <div>
-            <p className="text-rose-300/70 text-sm">{t.theSituation} · {CATEGORY_LABEL[scenario.category][state.lang]}</p>
-            <p className="text-rose-50">{scenario.text[state.lang]}</p>
-          </div>
-          <p><span className="text-rose-300/70 text-sm">{t.emotion}: </span><span className="text-orange-200 font-bold">{scenario.emotion[state.lang]}</span></p>
-          {round.lastGuess && (
-            <p className={`text-sm ${round.lastGuess === round.scenarioId ? 'text-red-300' : 'text-emerald-300'}`}>{t.lastGuessWas(SCENARIO_BY_ID[round.lastGuess].text[state.lang])}</p>
-          )}
-        </div>
-        <div className="border border-rose-500/30 bg-black/30 p-3">
-          <p className="text-orange-300 text-xs mb-2">{t.whoVoted}</p>
-          <ul className="space-y-1 text-sm">
-            {Object.entries(round.votes).map(([voter, s]) => (
-              <li key={voter}>
-                <span style={{ color: PLAYER_COLORS[Number(voter)] }}>{state.players[Number(voter)]}</span>
-                <span className="text-rose-300/60"> → </span>
-                <span className={s === round.impostor ? 'font-bold text-emerald-300' : 'text-rose-100'}>{state.players[s]}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="border border-rose-500/30 bg-black/30 p-3">
-          <p className="text-rose-50 text-sm mb-2">{t.bestClueTitle}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {state.players.map((name, p) => (
-              <button
-                key={p}
-                onClick={() => dispatch({ type: 'PICK_BEST_CLUE', player: round.bestClue === p ? null : p })}
-                className={`px-2.5 py-1.5 text-xs border ${round.bestClue === p ? 'text-black font-bold' : 'text-rose-100 border-rose-600/50'}`}
-                style={round.bestClue === p ? { background: PLAYER_COLORS[p], borderColor: PLAYER_COLORS[p] } : undefined}
-              >
-                {name}
-              </button>
-            ))}
-            {round.bestClue !== null && (
-              <button onClick={() => dispatch({ type: 'PICK_BEST_CLUE', player: null })} className="px-2.5 py-1.5 text-xs border border-rose-700 text-rose-300">{t.skip}</button>
-            )}
-          </div>
-        </div>
-        <div className="border border-rose-500/30 bg-black/30 p-3">
-          <p className="text-orange-300 text-xs mb-2 flex items-center gap-2"><Trophy className="w-4 h-4" />{t.roundPoints}</p>
-          <ul className="space-y-1 text-sm">
-            {result.points.map((pts, p) => ({ pts, p })).sort((a, b) => b.pts - a.pts).map(({ pts, p }) => (
-              <li key={p} className="flex justify-between"><span style={{ color: PLAYER_COLORS[p] }}>{state.players[p]}</span><b>+{pts}</b></li>
-            ))}
-          </ul>
-        </div>
-        <div className="border border-amber-400/30 bg-amber-500/5 p-3">
-          <p className="text-amber-300 text-xs mb-1 flex items-center gap-2"><Lightbulb className="w-4 h-4" />{t.didYouKnow}</p>
-          <p className="text-rose-50/85 text-sm leading-relaxed">{fact[state.lang]}</p>
-        </div>
-        <button
-          onClick={() => {
-            if (isLast && !expAwarded) {
-              addExp(50);
-              setExpAwarded(true);
-            }
-            dispatch({ type: 'NEXT_ROUND', scenarioId: nextScenario() });
-          }}
-          className={primaryBtn}
-          style={PIXEL}
-        >
-          {isLast ? t.seeFinal : t.nextRound}
-        </button>
-      </motion.div>
+      <RevealScreen
+        key={`reveal-${state.rounds.length}`}
+        state={state}
+        round={round}
+        scenario={scenario}
+        result={result}
+        t={t}
+        roundLabel={roundLabel}
+        impostorName={impostorName}
+        primaryBtn={primaryBtn}
+        onBestClue={(player) => dispatch({ type: 'PICK_BEST_CLUE', player })}
+        onNext={() => {
+          if (isLast && !expAwarded) {
+            addExp(50);
+            setExpAwarded(true);
+          }
+          dispatch({ type: 'NEXT_ROUND', scenarioId: nextScenario() });
+        }}
+      />
     );
   }
 
   // ==================== FINAL ====================
   if (state.phase === 'final' && stats) {
-    const nameList = (ids: number[]) => (ids.length ? ids.map((i) => state.players[i]).join(', ') : t.none);
-    const awards: [string, number[]][] = [
-      [t.awards.detective, stats.emotionDetective],
-      [t.awards.actor, stats.bestActor],
-      [t.awards.clue, stats.bestClue],
-    ];
     return shell(
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-        <h2 className="text-center text-orange-300 text-sm" style={PIXEL}>{t.finalTitle}</h2>
-        <div className="space-y-2">
-          {stats.players.map((p, rank) => (
-            <div key={p.player} className={`flex items-center gap-3 border p-3 ${rank === 0 ? 'border-orange-400 bg-orange-500/10' : 'border-rose-600/40 bg-black/30'}`}>
-              <span className="w-6 text-center text-rose-300" style={PIXEL}>{rank + 1}</span>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold truncate" style={{ color: PLAYER_COLORS[p.player] }}>{state.players[p.player]}</p>
-                <p className="text-xs text-rose-200/80">{t.stats(p.correctVotes, p.impostorWins)}</p>
-              </div>
-              <span className="text-lg font-bold">{p.total}</span>
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {awards.map(([label, ids]) => (
-            <div key={label} className="border border-rose-600/40 bg-black/30 p-3">
-              <p className="text-rose-300/70 text-xs">{label}</p>
-              <p className="font-bold text-sm">{nameList(ids)}</p>
-            </div>
-          ))}
-        </div>
-        <button onClick={() => arrangeSeats(state.players, state.roundsTotal, state.difficulty)} className={`${primaryBtn} flex items-center justify-center gap-2`} style={PIXEL}>
-          <RotateCcw className="w-4 h-4" />{t.playAgain}
-        </button>
-        <button onClick={() => { setNames(state.players); setRoundsTotal(state.roundsTotal); setDifficulty(state.difficulty); dispatch({ type: 'SHOW_SETUP' }); }} className="w-full py-3 border border-rose-500/50 text-rose-200 text-[10px]" style={PIXEL}>{t.newPlayers}</button>
-      </motion.div>
+      <FinalScreen
+        state={state}
+        stats={stats}
+        t={t}
+        primaryBtn={primaryBtn}
+        onPlayAgain={() => arrangeSeats(state.players, state.roundsTotal, state.difficulty)}
+        onNewPlayers={() => { setNames(state.players); setRoundsTotal(state.roundsTotal); setDifficulty(state.difficulty); dispatch({ type: 'SHOW_SETUP' }); }}
+      />
     );
   }
 
