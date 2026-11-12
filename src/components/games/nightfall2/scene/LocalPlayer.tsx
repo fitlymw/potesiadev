@@ -4,9 +4,13 @@ import * as THREE from 'three';
 import { INPUT_SEND_MS } from '../../../../../shared/nightfall2/constants';
 import { colliders, spawnPoint } from '../../../../../shared/nightfall2/town';
 import { step } from '../../../../../shared/nightfall2/physics';
-import { sendInput } from '../net';
-import { camera as cam, env, input, positions, useNf2 } from '../store';
-import { Avatar } from './Players';
+import { decodeLook } from '../../../../../shared/nightfall2/look';
+import { jump, sendEmote, sendInput } from '../net';
+import { camera as cam, emoteAnim, env, input, jumps, positions, useNf2 } from '../store';
+import { ElfCharacter } from './ElfCharacter';
+import { newAnim } from './anim';
+import { Overhead } from './Overhead';
+import { useOverhead } from './useOverhead';
 
 const BOXES = colliders();
 const CAM_DIST = 6.5;
@@ -20,15 +24,16 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
   const me = useNf2((s) => s.me);
   const roster = useNf2((s) => s.roster);
   const mine = roster.find((p) => p.id === me);
+  const look = useMemo(() => decodeLook(mine?.look), [mine?.look]);
+  const over = useOverhead(me);
   const { camera } = useThree();
   const group = useRef<THREE.Group>(null);
-  const body = useRef<THREE.Group>(null);
   const light = useRef<THREE.PointLight>(null);
+  const anim = useRef(newAnim());
   const pos = useRef<{ x: number; z: number } | null>(null);
   const rot = useRef(0);
   const lastSend = useRef(0);
   const lastSent = useRef({ x: 0, z: 0 });
-  const bob = useRef(0);
   const target = useMemo(() => new THREE.Vector3(), []);
   const desired = useMemo(() => new THREE.Vector3(), []);
 
@@ -37,7 +42,12 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
       const el = document.activeElement as HTMLElement | null;
       return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
     };
-    const down = (e: KeyboardEvent) => { if (!typing()) input.keys.add(e.code); };
+    const down = (e: KeyboardEvent) => {
+      if (typing()) return;
+      input.keys.add(e.code);
+      if (e.code === 'Space') { e.preventDefault(); jump(); }
+      if (/^Digit[1-8]$/.test(e.code)) sendEmote(Number(e.code.slice(5)) - 1);
+    };
     const up = (e: KeyboardEvent) => input.keys.delete(e.code);
     const blur = () => input.keys.clear();
     window.addEventListener('keydown', down);
@@ -94,14 +104,17 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
       lastSent.current = { x: dir.x, z: dir.z };
     }
 
+    const a = anim.current;
+    a.moving = moving;
+    a.jumpStart = jumps.get(me) ?? -1e9;
+    const e = emoteAnim.get(me);
+    a.emote = e ? e.id : -1;
+    a.emoteStart = e ? e.start : -1e9;
+
     const g = group.current;
     if (g) {
       g.position.set(p.x, 0, p.z);
       g.rotation.y = rot.current;
-      if (body.current) {
-        bob.current += dt * (moving ? 11 : 0);
-        body.current.position.y = moving ? Math.abs(Math.sin(bob.current)) * 0.06 : 0;
-      }
     }
     if (light.current) light.current.intensity = env.night * 7;
     meRef.current?.set(p.x, 0, p.z);
@@ -116,10 +129,9 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
   if (!mine) return null;
   return (
     <group ref={group}>
-      <group ref={body}>
-        <Avatar color={mine.color} alive={mine.alive} />
-      </group>
-      <pointLight ref={light} position={[0.4, 1.2, 0.3]} color="#ffb860" intensity={0} distance={8} decay={2} />
+      <ElfCharacter look={look} animRef={anim} alive={mine.alive} />
+      <pointLight ref={light} position={[-0.4, 1.0, 0.3]} color="#ffb860" intensity={0} distance={8} decay={2} />
+      <Overhead text={over.text} emote={over.emote} />
     </group>
   );
 }

@@ -1,14 +1,16 @@
 import { useSyncExternalStore } from 'react';
-import type { Phase } from '../../../../shared/nightfall2/constants';
+import type { Lang, Phase } from '../../../../shared/nightfall2/constants';
 import type { ChatEvent, SystemEvent } from '../../../../shared/nightfall2/messages';
 
 /** Slow-changing data React renders from. */
-export interface Roster { id: string; name: string; color: string; host: boolean; alive: boolean }
+export interface Roster { id: string; name: string; color: string; look: string; host: boolean; alive: boolean }
 export interface Notice { id: number; key: SystemEvent['key']; text: string; at: number }
+export interface Crier { day: number; lang: Lang; lines: string[]; index: number }
 export interface Nf2State {
   status: 'idle' | 'connecting' | 'lobby' | 'playing' | 'error';
   error: string;
   code: string;
+  lang: Lang;
   phase: Phase;
   phaseEndsAt: number;
   day: number;
@@ -16,9 +18,12 @@ export interface Nf2State {
   roster: Roster[];
   chat: ChatEvent[];
   notices: Notice[];
+  /** latest emote per player (for the overhead emoji) */
+  emotes: Record<string, { id: number; at: number }>;
+  crier: Crier | null;
 }
 
-const initial: Nf2State = { status: 'idle', error: '', code: '', phase: 'lobby', phaseEndsAt: 0, day: 0, me: '', roster: [], chat: [], notices: [] };
+const initial: Nf2State = { status: 'idle', error: '', code: '', lang: 'id', phase: 'lobby', phaseEndsAt: 0, day: 0, me: '', roster: [], chat: [], notices: [], emotes: {}, crier: null };
 let state: Nf2State = initial;
 const subs = new Set<() => void>();
 
@@ -31,6 +36,8 @@ export const nf2 = {
   reset() {
     state = initial;
     positions.clear();
+    jumps.clear();
+    emoteAnim.clear();
     subs.forEach((fn) => fn());
   },
   subscribe(fn: () => void) {
@@ -44,11 +51,15 @@ export function useNf2<T>(selector: (s: Nf2State) => T): T {
 }
 
 /**
- * Fast-changing data (20 Hz from the server) lives outside React: the 3D scene reads it
- * every frame, so a position change never re-renders the UI.
+ * Fast-changing data (20 Hz from the server, per-frame animation) lives outside React: the 3D
+ * scene reads it every frame, so a position change never re-renders the UI.
  */
 export interface Pose { x: number; z: number; rot: number; moving: boolean }
 export const positions = new Map<string, Pose>();
+/** performance.now() of each player's last jump */
+export const jumps = new Map<string, number>();
+/** emote id + performance.now() start, per player */
+export const emoteAnim = new Map<string, { id: number; start: number }>();
 
 /** Movement input shared by the joystick, the keyboard and the local player: x right, y forward (−1..1). */
 export const input = { x: 0, y: 0, keys: new Set<string>() };

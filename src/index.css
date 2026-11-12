@@ -380,3 +380,10 @@ html {
 .hamburger-icon.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
 .hamburger-icon.open span:nth-child(2) { opacity: 0; }
 .hamburger-icon.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+/* Nightfall 2: emote emoji popping in above a head */
+@keyframes nf2-pop {
+  from { transform: scale(0.3) translateY(10px); opacity: 0; }
+  60%  { transform: scale(1.15) translateY(-2px); opacity: 1; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+.nf2-pop { animation: nf2-pop 0.35s cubic-bezier(0.2, 1.2, 0.4, 1) both; }

@@ -1,7 +1,9 @@
+import { useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { LogOut, Moon, SkipForward, Sun, Users } from 'lucide-react';
+import { LogOut, Moon, SkipForward, Sun, Users, Volume2, VolumeX } from 'lucide-react';
 import { MAX_PLAYERS } from '../../../../../shared/nightfall2/constants';
 import { hostAction, leaveLobby } from '../net';
+import { isCrierMuted, setCrierMuted, subscribeCrierMuted } from '../speech';
 import { useNf2 } from '../store';
 import { useNow } from '../useNow';
 import type { TEXT } from '../texts';
@@ -18,6 +20,7 @@ export function Hud({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
   const notices = useNf2((s) => s.notices);
   const isHost = roster.find((p) => p.id === me)?.host ?? false;
   const now = useNow();
+  const crierMuted = useSyncExternalStore(subscribeCrierMuted, isCrierMuted, isCrierMuted);
   // big banner for a few seconds after the phase flips (derived from the server's notice)
   const last = notices[notices.length - 1];
   const flip = last && (last.key === 'night' || last.key === 'day' || last.key === 'started') && now - last.at < 3500;
@@ -39,7 +42,10 @@ export function Hud({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
         </div>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1 rounded-xl border border-white/15 bg-black/40 px-2.5 py-2 text-xs backdrop-blur-md"><Users className="h-3.5 w-3.5" />{roster.length}/{MAX_PLAYERS}</span>
-          <span className="rounded-xl border border-white/15 bg-black/40 px-2.5 py-2 font-mono text-xs tracking-widest backdrop-blur-md">{code}</span>
+          <span className="hidden rounded-xl border border-white/15 bg-black/40 px-2.5 py-2 font-mono text-xs tracking-widest backdrop-blur-md sm:inline">{code}</span>
+          <button onClick={() => setCrierMuted(!crierMuted)} className="rounded-xl border border-white/15 bg-black/40 p-2 backdrop-blur-md" aria-label={crierMuted ? t.crierVoiceOff : t.crierVoiceOn} aria-pressed={crierMuted} title={crierMuted ? t.crierVoiceOff : t.crierVoiceOn}>
+            {crierMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
           {isHost && (
             <button onClick={() => hostAction('skip')} className="rounded-xl border border-white/15 bg-black/40 p-2 backdrop-blur-md" aria-label={t.skip} title={t.skip}><SkipForward className="h-4 w-4" /></button>
           )}
