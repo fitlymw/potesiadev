@@ -9,7 +9,7 @@ import { Camera, Upload, X, RefreshCw, Loader2, ArrowLeft, Download, Monitor, Ca
  * Fungsi Helper untuk memastikan jalur aset benar di GitHub Pages.
  */
 const getAssetUrl = (path: string) => {
-  const base = '/potesiadev';
+  const base = import.meta.env.BASE_URL.slice(0, -1);
   return `${base}${path.startsWith('/') ? path : '/' + path}`;
 };
 

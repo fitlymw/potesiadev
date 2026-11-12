@@ -6,7 +6,7 @@ import { ItemSlot } from '@/components/common/ItemSlot';
 import { playClick } from '@/lib/audio';
 
 const getAssetUrl = (path: string) => {
-  const base = '/potesiadev';
+  const base = import.meta.env.BASE_URL.slice(0, -1);
   return `${base}${path.startsWith('/') ? path : '/' + path}`;
 };
 

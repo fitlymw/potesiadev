@@ -1,4 +1,4 @@
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useState, useCallback, lazy, Suspense, type ReactNode } from 'react';
 import { CartProvider } from '@/hooks/useCart';
@@ -14,6 +14,9 @@ import { BgMusicToggle } from '@/components/common/BgMusicToggle';
 import { initAudio } from '@/lib/audio';
 
 // Halaman selain landing dipecah per-chunk agar bundle awal kecil
+// GitHub Pages has no SPA fallback, so it uses hash URLs; potesia.com/games (Vercel) uses clean URLs.
+const Router = import.meta.env.VITE_ROUTER === 'browser' ? BrowserRouter : HashRouter;
+
 const MenuPage = lazy(() => import('@/pages/MenuPage').then((m) => ({ default: m.MenuPage })));
 const AboutMePage = lazy(() => import('@/pages/AboutMePage').then((m) => ({ default: m.AboutMePage })));
 const MyProjectPage = lazy(() => import('@/pages/MyProjectPage').then((m) => ({ default: m.MyProjectPage })));

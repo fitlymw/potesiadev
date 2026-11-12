@@ -22,7 +22,7 @@ i18n
     },
 
     backend: {
-      loadPath: '/potesiadev/locales/{{lng}}/translation.json',
+      loadPath: `${import.meta.env.BASE_URL}locales/{{lng}}/translation.json`,
     },
 
     supportedLngs: ['id', 'en'],

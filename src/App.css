@@ -12,7 +12,7 @@ body {
   min-height: 100vh;
   /* MENGATUR BACKGROUND UTAMA: Jalur absolut untuk sub-folder GitHub Pages */
   /* Pastikan nama file di folder public/images/ adalah castle_retro.gif */
-  background-image: url('/potesiadev/images/castle_retro.gif');
+  background-image: url('../public/images/castle_retro.gif');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;

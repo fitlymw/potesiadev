@@ -31,7 +31,7 @@ export function AudioProvider({ children }: AudioProviderProps): ReactNode {
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       // Nightfall is played with eyes closed: taps must not make a sound that others can hear
-      if (window.location.hash.startsWith('#/games/nightfall')) return;
+      if (window.location.hash.startsWith('#/games/nightfall') || window.location.pathname.includes('/games/nightfall')) return;
       const target = e.target as HTMLElement;
       
       // Check if clicked element or its parent is interactive
