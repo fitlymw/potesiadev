@@ -34,6 +34,7 @@ const OracleResultPage = lazy(() => import('@/pages/OracleResultPage').then((m) 
 const RetroAICameraPage = lazy(() => import('@/pages/RetroAICameraPage').then((m) => ({ default: m.RetroAICameraPage })));
 const PersonaCorePage = lazy(() => import('@/pages/PersonaCorePage').then((m) => ({ default: m.PersonaCorePage })));
 const NightfallPage = lazy(() => import('@/pages/NightfallPage').then((m) => ({ default: m.NightfallPage })));
+const Nightfall2Page = lazy(() => import('@/pages/Nightfall2Page').then((m) => ({ default: m.Nightfall2Page })));
 const EmotionImpostorPage = lazy(() => import('@/pages/EmotionImpostorPage').then((m) => ({ default: m.EmotionImpostorPage })));
 const ProfilerPage = lazy(() => import('@/pages/ProfilerPage').then((m) => ({ default: m.ProfilerPage })));
 const MindReaderPage = lazy(() => import('@/pages/MindReaderPage').then((m) => ({ default: m.MindReaderPage })));
@@ -113,6 +114,7 @@ function App() {
                 <Route path="/games/retro-ai-camera" element={<Fullscreen><RetroAICameraPage /></Fullscreen>} />
                 <Route path="/games/persona-core" element={<Fullscreen><PersonaCorePage /></Fullscreen>} />
                 <Route path="/games/nightfall" element={<Fullscreen><NightfallPage /></Fullscreen>} />
+                <Route path="/games/nightfall-2" element={<Fullscreen><Nightfall2Page /></Fullscreen>} />
                 <Route path="/games/emotion-impostor" element={<Fullscreen><EmotionImpostorPage /></Fullscreen>} />
                 <Route path="/games/profiler" element={<Fullscreen><ProfilerPage /></Fullscreen>} />
                 <Route path="/games/mind-reader" element={<Fullscreen><MindReaderPage /></Fullscreen>} />

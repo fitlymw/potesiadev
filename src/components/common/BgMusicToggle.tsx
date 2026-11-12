@@ -5,7 +5,7 @@ import { Music, VolumeX } from 'lucide-react';
 import { isBgMuted, setBgMuted, subscribeBgMuted } from '@/lib/audio';
 
 /** Routes that play their own music and have their own sound button. */
-const OWN_MUSIC_ROUTES = ['/games/nightfall'];
+const OWN_MUSIC_ROUTES = ['/games/nightfall', '/games/nightfall-2'];
 
 /** Small floating button that mutes / unmutes the website's background music. */
 export function BgMusicToggle() {

@@ -58,6 +58,14 @@ const GAMES: GameCard[] = [
     path: '/games/nightfall',
   },
   {
+    id: 'nightfall-2',
+    title: 'Nightfall 2: Elf Town',
+    description: 'Online 3D town (6–15 players, phone + PC): roam by day, whisper within earshot by night. Early build.',
+    icon: getAssetUrl('/images/nightfall-icon.svg'),
+    color: 'teal',
+    path: '/games/nightfall-2',
+  },
+  {
     id: 'emotion-impostor',
     title: 'Emotion Impostor',
     description: 'Party game (4–8 players, 1 phone): find who is faking the feeling',
