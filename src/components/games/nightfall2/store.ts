@@ -54,7 +54,7 @@ export function useNf2<T>(selector: (s: Nf2State) => T): T {
  * Fast-changing data (20 Hz from the server, per-frame animation) lives outside React: the 3D
  * scene reads it every frame, so a position change never re-renders the UI.
  */
-export interface Pose { x: number; z: number; rot: number; moving: boolean }
+export interface Pose { x: number; y: number; z: number; rot: number; moving: boolean }
 export const positions = new Map<string, Pose>();
 /** performance.now() of each player's last jump */
 export const jumps = new Map<string, number>();
@@ -67,3 +67,5 @@ export const input = { x: 0, y: 0, keys: new Set<string>() };
 export const camera = { yaw: 0 };
 /** Day/night blend (0 = noon, 1 = deep night), eased by the scene every frame. */
 export const env = { night: 0 };
+/** Which house footprint the local player stands in (−1 outside): its roof is hidden. */
+export const view = { house: -1 };

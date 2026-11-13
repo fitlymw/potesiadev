@@ -76,16 +76,47 @@ async function furniture() {
   console.log(`furniture: ${kb(total)}`);
 }
 
+const srgbToLinear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+/** "#68a63a" → the linear factor that displays as that sRGB colour. */
+const hexFactor = (hex) => [0, 2, 4].map((i) => srgbToLinear(parseInt(hex.slice(1 + i, 3 + i), 16) / 255)).concat(1);
+
+/**
+ * Nature Kit 2.1's GLB export writes teal for every green and pale cyan for stone (its own
+ * previews are green and grey), so those named materials are recoloured to a natural palette.
+ * The browns in the kit are fine and are left alone.
+ */
+const NATURE_PALETTE = {
+  leafsGreen: '#6ba63c', leafsDark: '#4a7a29', grass: '#6fb340', stone: '#9aa6ab',
+  wood: '#c08347', woodBark: '#9c6a42', woodBarkDark: '#7d5432', dirt: '#ad7b4e',
+};
+
+/**
+ * Kenney kits: rewritten so every GLB is self-contained (the town kit references one external
+ * colormap in Textures/) and non-metallic — the files leave metallicFactor at glTF's default of 1,
+ * which renders black without an environment map.
+ */
 async function kit(name) {
   const dir = path.join(src, name);
   await mkdir(path.join(out, name), { recursive: true });
+  const palette = name === 'nature' ? NATURE_PALETTE : {};
   let total = 0;
+  const recoloured = new Set();
   for (const f of (await readdir(dir)).filter((x) => x.endsWith('.glb'))) {
+    const doc = await io.read(path.join(dir, f));
+    doc.getRoot().listMaterials().forEach((m) => {
+      m.setMetallicFactor(0).setRoughnessFactor(0.9);
+      const hex = palette[m.getName()];
+      if (hex) {
+        m.setBaseColorFactor(hexFactor(hex));
+        recoloured.add(m.getName());
+      }
+    });
+    await doc.transform(dedup(), prune());
     const dest = path.join(out, name, f);
-    await copyFile(path.join(dir, f), dest);
+    await io.write(dest, doc);
     total += await size(dest);
   }
-  console.log(`${name}: ${kb(total)}`);
+  console.log(`${name}: ${kb(total)}${recoloured.size ? ` (recoloured ${[...recoloured].join(', ')})` : ''}`);
 }
 
 await characters();

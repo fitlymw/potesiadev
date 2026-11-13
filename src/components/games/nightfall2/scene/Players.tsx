@@ -33,6 +33,7 @@ function RemotePlayer({ p, meRef }: { p: Roster; meRef: React.RefObject<THREE.Ve
     if (!pose || !g) return;
     const k = 1 - Math.exp(-dt * 12);
     g.position.x += (pose.x - g.position.x) * k;
+    g.position.y += (pose.y - g.position.y) * k;
     g.position.z += (pose.z - g.position.z) * k;
     g.rotation.y = lerpAngle(g.rotation.y, pose.rot, k);
     const a = anim.current;

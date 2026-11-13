@@ -147,7 +147,8 @@ function GameView({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
       onPointerUp={(e) => { if (drag.current?.id === e.pointerId) drag.current = null; }}
       onPointerCancel={() => { drag.current = null; }}
     >
-      <Canvas dpr={[1, 1.5]} camera={{ fov: 55, near: 0.1, far: 220, position: [0, 4, 8] }} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+      {/* `flat` = no filmic tone mapping: the kits are flat-shaded, so their palette should land as authored */}
+      <Canvas flat dpr={[1, 1.5]} camera={{ fov: 55, near: 0.1, far: 220, position: [0, 4, 8] }} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         <Suspense fallback={null}>
           <DayNight />
           <Town />

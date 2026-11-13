@@ -115,12 +115,13 @@ function bind(r: Room) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   $(r.state).players.onAdd((p: any, id: string) => {
-    positions.set(id, { x: p.x, z: p.z, rot: p.rot, moving: p.moving });
+    positions.set(id, { x: p.x, y: p.y ?? 0, z: p.z, rot: p.rot, moving: p.moving });
     syncRoster();
     $(p).onChange(() => {
       const pose = positions.get(id);
       if (pose) {
         pose.x = p.x;
+        pose.y = p.y ?? 0;
         pose.z = p.z;
         pose.rot = p.rot;
         pose.moving = p.moving;

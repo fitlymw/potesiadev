@@ -8,6 +8,7 @@ import {
   DAY_SECONDS,
   EMOTES,
   EMOTE_MIN_INTERVAL_MS,
+  JUMP_DURATION_MS,
   JUMP_MIN_INTERVAL_MS,
   MAX_PLAYERS,
   NIGHT_SECONDS,
@@ -32,13 +33,14 @@ export class Player extends Schema {
   declare color: string;
   declare look: string;
   declare x: number;
+  declare y: number;
   declare z: number;
   declare rot: number;
   declare moving: boolean;
   declare host: boolean;
   declare alive: boolean;
 }
-defineTypes(Player, { sessionId: 'string', name: 'string', color: 'string', look: 'string', x: 'number', z: 'number', rot: 'number', moving: 'boolean', host: 'boolean', alive: 'boolean' });
+defineTypes(Player, { sessionId: 'string', name: 'string', color: 'string', look: 'string', x: 'number', y: 'number', z: 'number', rot: 'number', moving: 'boolean', host: 'boolean', alive: 'boolean' });
 
 export class TownState extends Schema {
   declare code: string;
@@ -116,6 +118,7 @@ export class ElfTownRoom extends Room<TownState> {
     p.look = encodeLook(decodeLook(typeof options?.look === 'string' ? options.look : ''));
     const sp = spawnPoint(this.joinCount++);
     p.x = sp.x;
+    p.y = 0;
     p.z = sp.z;
     p.rot = sp.rot;
     p.moving = false;
@@ -147,19 +150,22 @@ export class ElfTownRoom extends Room<TownState> {
 
   private tick(dtMs: number) {
     const dt = dtMs / 1000;
+    const now = Date.now();
     this.state.players.forEach((p, id) => {
       const inp = this.inputs.get(id);
       const moving = !!inp && Math.hypot(inp.x, inp.z) > 0.05;
       if (moving && inp) {
-        const next = step({ x: p.x, z: p.z }, inp, dt, BOXES);
+        const jumping = now - (this.lastJumpAt.get(id) ?? -1e9) < JUMP_DURATION_MS;
+        const next = step({ x: p.x, y: p.y, z: p.z }, inp, dt, BOXES, jumping);
         this.stats.walked.set(id, (this.stats.walked.get(id) ?? 0) + Math.hypot(next.x - p.x, next.z - p.z));
         p.x = next.x;
+        p.y = next.y;
         p.z = next.z;
         p.rot = inp.rot;
       }
       if (p.moving !== moving) p.moving = moving;
     });
-    if (this.state.phase !== 'lobby' && Date.now() >= this.state.phaseEndsAt) this.nextPhase();
+    if (this.state.phase !== 'lobby' && now >= this.state.phaseEndsAt) this.nextPhase();
   }
 
   private beginPhase(phase: Phase, day = this.state.day) {

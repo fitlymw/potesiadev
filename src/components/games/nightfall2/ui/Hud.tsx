@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { LogOut, Moon, SkipForward, Sun, Users, Volume2, VolumeX } from 'lucide-react';
 import { MAX_PLAYERS } from '../../../../../shared/nightfall2/constants';
 import { hostAction, leaveLobby } from '../net';
-import { isCrierMuted, setCrierMuted, subscribeCrierMuted } from '../speech';
+import { getVoiceStatus, isCrierMuted, setCrierMuted, subscribeCrierMuted, subscribeVoiceStatus } from '../speech';
 import { useNf2 } from '../store';
 import { useNow } from '../useNow';
 import type { TEXT } from '../texts';
@@ -21,6 +21,9 @@ export function Hud({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
   const isHost = roster.find((p) => p.id === me)?.host ?? false;
   const now = useNow();
   const crierMuted = useSyncExternalStore(subscribeCrierMuted, isCrierMuted, isCrierMuted);
+  const voice = useSyncExternalStore(subscribeVoiceStatus, getVoiceStatus, getVoiceStatus);
+  const crier = useNf2((s) => s.crier);
+  const crierLine = crier && crier.index >= 0 && crier.index < crier.lines.length ? crier.lines[crier.index] : null;
   // big banner for a few seconds after the phase flips (derived from the server's notice)
   const last = notices[notices.length - 1];
   const flip = last && (last.key === 'night' || last.key === 'day' || last.key === 'started') && now - last.at < 3500;
@@ -53,7 +56,18 @@ export function Hud({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
         </div>
       </div>
 
-      <div className="pointer-events-none absolute left-1/2 top-16 flex -translate-x-1/2 flex-col items-center gap-1">
+      {/* One column under the top bar: proclamation, voice notice, then transient notices */}
+      <div className="pointer-events-none absolute left-1/2 top-16 flex w-[min(94vw,460px)] -translate-x-1/2 flex-col items-center gap-1.5">
+        {/* readable anywhere in town — the Crier's world bubble is only visible nearby */}
+        {night && crierLine && (
+          <motion.div key={crierLine} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="w-full rounded-2xl border border-amber-300/50 bg-[#1a1408]/85 px-4 py-2.5 text-center backdrop-blur-md">
+            <p className="text-[9px] uppercase tracking-widest text-amber-300/80" style={PIXEL}>🔔 {t.crier}</p>
+            <p className="mt-1.5 text-sm leading-snug text-amber-50">{crierLine}</p>
+          </motion.div>
+        )}
+        {night && voice.missing && !crierMuted && (
+          <p className="w-full rounded-xl border border-amber-300/40 bg-amber-950/70 px-3 py-2 text-center text-[11px] text-amber-100 backdrop-blur-md">{t.voiceMissing}</p>
+        )}
         <AnimatePresence>
           {notices.slice(-3).map((n) => (
             <motion.div key={n.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-full bg-black/50 px-3 py-1 text-xs text-white/85 backdrop-blur-sm">

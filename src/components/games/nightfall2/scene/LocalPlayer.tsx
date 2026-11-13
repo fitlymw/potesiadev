@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { INPUT_SEND_MS } from '../../../../../shared/nightfall2/constants';
-import { colliders, spawnPoint } from '../../../../../shared/nightfall2/town';
+import { INPUT_SEND_MS, JUMP_DURATION_MS } from '../../../../../shared/nightfall2/constants';
+import { colliders, houseAt, spawnPoint } from '../../../../../shared/nightfall2/town';
 import { step } from '../../../../../shared/nightfall2/physics';
 import { decodeLook } from '../../../../../shared/nightfall2/look';
 import { jump, sendEmote, sendInput } from '../net';
-import { camera as cam, emoteAnim, env, input, jumps, positions, useNf2 } from '../store';
+import { camera as cam, emoteAnim, env, input, jumps, positions, useNf2, view } from '../store';
 import { KayCharacter } from './KayCharacter';
 import { newAnim } from './anim';
 import { Overhead } from './Overhead';
@@ -15,6 +15,9 @@ import { useOverhead } from './useOverhead';
 const BOXES = colliders();
 const CAM_DIST = 6.5;
 const CAM_HEIGHT = 3.4;
+/** Inside a house the camera comes in close and looks over the walls (the roof is hidden). */
+const CAM_DIST_IN = 2.6;
+const CAM_HEIGHT_IN = 5.6;
 
 /**
  * My own character: moves immediately from local input (prediction) using the same physics
@@ -30,7 +33,9 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
   const group = useRef<THREE.Group>(null);
   const light = useRef<THREE.PointLight>(null);
   const anim = useRef(newAnim());
-  const pos = useRef<{ x: number; z: number } | null>(null);
+  const pos = useRef<{ x: number; y: number; z: number } | null>(null);
+  const camDist = useRef(CAM_DIST);
+  const camHeight = useRef(CAM_HEIGHT);
   const rot = useRef(0);
   const lastSend = useRef(0);
   const lastSent = useRef({ x: 0, z: 0 });
@@ -66,7 +71,7 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
     const server = positions.get(me);
     if (!pos.current) {
       const sp = server ?? spawnPoint(0);
-      pos.current = { x: sp.x, z: sp.z };
+      pos.current = { x: sp.x, y: server?.y ?? 0, z: sp.z };
       rot.current = sp.rot;
     }
     const p = pos.current;
@@ -82,9 +87,11 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
     const dir = { x: fx * iy + rx * ix, z: fz * iy + rz * ix };
     const moving = Math.hypot(dir.x, dir.z) > 0.05;
 
+    const jumping = performance.now() - (jumps.get(me) ?? -1e9) < JUMP_DURATION_MS;
     if (moving) {
-      const next = step(p, dir, dt, BOXES);
+      const next = step(p, dir, dt, BOXES, jumping);
       p.x = next.x;
+      p.y = next.y;
       p.z = next.z;
       rot.current = Math.atan2(dir.x, dir.z);
     }
@@ -94,6 +101,7 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
       const pull = err > 1.2 ? 0.25 : moving ? 0.03 : 0.1;
       p.x += (server.x - p.x) * pull;
       p.z += (server.z - p.z) * pull;
+      p.y += (server.y - p.y) * 0.2;
     }
     // tell the server (throttled; always send the stop)
     const now = performance.now();
@@ -113,15 +121,19 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
 
     const g = group.current;
     if (g) {
-      g.position.set(p.x, 0, p.z);
+      g.position.set(p.x, p.y, p.z);
       g.rotation.y = rot.current;
     }
+    view.house = houseAt(p.x, p.z);
     if (light.current) light.current.intensity = env.night * 7;
-    meRef.current?.set(p.x, 0, p.z);
+    meRef.current?.set(p.x, p.y, p.z);
 
-    // third-person camera behind the player
-    target.set(p.x, 1.3, p.z);
-    desired.set(p.x + Math.sin(cam.yaw) * CAM_DIST, CAM_HEIGHT, p.z + Math.cos(cam.yaw) * CAM_DIST);
+    // third-person camera behind the player (closer and higher inside a house)
+    const inside = view.house >= 0;
+    camDist.current += ((inside ? CAM_DIST_IN : CAM_DIST) - camDist.current) * Math.min(1, dt * 4);
+    camHeight.current += ((inside ? CAM_HEIGHT_IN : CAM_HEIGHT) - camHeight.current) * Math.min(1, dt * 4);
+    target.set(p.x, p.y + 1.3, p.z);
+    desired.set(p.x + Math.sin(cam.yaw) * camDist.current, p.y + camHeight.current, p.z + Math.cos(cam.yaw) * camDist.current);
     camera.position.lerp(desired, 1 - Math.exp(-dt * 9));
     camera.lookAt(target);
   });
