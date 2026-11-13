@@ -15,6 +15,7 @@ import { DayNight } from './scene/DayNight';
 import { RemotePlayers } from './scene/Players';
 import { LocalPlayer } from './scene/LocalPlayer';
 import { Crier } from './scene/Crier';
+import { preloadCharacters } from './scene/characterAssets';
 import { Hud } from './ui/Hud';
 import { Chat } from './ui/Chat';
 import { Joystick } from './ui/Joystick';
@@ -32,6 +33,7 @@ export function Nightfall2() {
   useEffect(() => { setNoticeFormatter(TEXT[lang].notice); }, [lang]);
   useEffect(() => {
     pauseBgMusic(); // the town has its own sounds; the site's chiptune would clash
+    preloadCharacters();
     return () => {
       leaveLobby();
       resumeBgMusic();

@@ -1,51 +1,57 @@
 /**
- * Character customisation. A Look is a handful of palette indices, so it travels as a short
- * string and both the editor preview and the in-world character build the same body from it.
+ * Character customisation (KayKit Adventurers rig). All five classes share one skeleton, so a
+ * look mixes parts across classes: head / body / arms / legs each pick a class, plus a cape, a hat,
+ * a tint per part, a height and elf ears. Travels as a short "k.…" string in the room state.
  */
 
-export const SKIN = ['#f6d7c3', '#e8b998', '#c68e63', '#9c6b45', '#6b4530', '#b9e3c6', '#cbb6ea'];
-export const HAIR_COLORS = ['#2b2118', '#5a3a22', '#b5651d', '#e3c16f', '#e8e8e8', '#7a3b8f', '#2f6fb0', '#3aa35b', '#d94f7a'];
-export const CLOTH = ['#b91c1c', '#1d4ed8', '#047857', '#7c3aed', '#b45309', '#0e7490', '#be185d', '#374151', '#f5f5f4', '#1f2937', '#65a30d', '#f59e0b'];
+export const CLASSES = ['Knight', 'Rogue', 'Mage', 'Barbarian'] as const;
+export type ClassName = (typeof CLASSES)[number];
 
-export const HAIR_STYLES = ['bald', 'short', 'long', 'bun', 'spiky', 'ponytail', 'bob'] as const;
-export const HATS = ['none', 'wizard', 'hood', 'crown', 'leaf', 'beret', 'helmet'] as const;
-export const EYES = ['round', 'happy', 'sleepy', 'wide'] as const;
-export const MOUTHS = ['smile', 'flat', 'open'] as const;
-export const ACCESSORIES = ['none', 'cape', 'backpack', 'scarf', 'wings'] as const;
+/** 0 = none, otherwise CLASSES[i-1]'s cape */
+export const CAPES = ['none', ...CLASSES] as const;
+/** KayKit hats, the hooded Rogue head, then primitive hats built in code */
+export const HATS = ['none', 'helmet', 'mageHat', 'barbarianHat', 'hood', 'wizard', 'crown', 'leaf', 'beret'] as const;
+/** First entry = the texture as painted; the rest are light tints that keep the detail. */
+export const TINTS = ['#ffffff', '#ffd1d1', '#ffe2b8', '#fff3b0', '#d4f5c4', '#c8f0ea', '#cfe0ff', '#e0d2ff', '#ffd0ec', '#d9d9d9', '#a9a9a9', '#f3b56b', '#8ad0ff', '#9be3a8'];
+export const HEIGHTS = 5; // 0.92 … 1.08 × base scale
 
 export interface Look {
-  skin: number;
-  hair: number;
-  hairColor: number;
+  head: number;
+  body: number;
+  arms: number;
+  legs: number;
+  cape: number;
   hat: number;
-  hatColor: number;
-  top: number;
-  bottom: number;
-  shoes: number;
-  eyes: number;
-  mouth: number;
-  acc: number;
-  accColor: number;
+  tintHead: number;
+  tintBody: number;
+  tintArms: number;
+  tintLegs: number;
+  tintCape: number;
+  tintHat: number;
+  height: number;
+  ears: number;
 }
 
-const KEYS: (keyof Look)[] = ['skin', 'hair', 'hairColor', 'hat', 'hatColor', 'top', 'bottom', 'shoes', 'eyes', 'mouth', 'acc', 'accColor'];
+const KEYS: (keyof Look)[] = ['head', 'body', 'arms', 'legs', 'cape', 'hat', 'tintHead', 'tintBody', 'tintArms', 'tintLegs', 'tintCape', 'tintHat', 'height', 'ears'];
 const LIMITS: Record<keyof Look, number> = {
-  skin: SKIN.length, hair: HAIR_STYLES.length, hairColor: HAIR_COLORS.length, hat: HATS.length, hatColor: CLOTH.length,
-  top: CLOTH.length, bottom: CLOTH.length, shoes: CLOTH.length, eyes: EYES.length, mouth: MOUTHS.length, acc: ACCESSORIES.length, accColor: CLOTH.length,
+  head: CLASSES.length, body: CLASSES.length, arms: CLASSES.length, legs: CLASSES.length, cape: CAPES.length, hat: HATS.length,
+  tintHead: TINTS.length, tintBody: TINTS.length, tintArms: TINTS.length, tintLegs: TINTS.length, tintCape: TINTS.length, tintHat: TINTS.length,
+  height: HEIGHTS, ears: 2,
 };
 
 export function defaultLook(): Look {
-  return { skin: 0, hair: 1, hairColor: 1, hat: 0, hatColor: 3, top: 2, bottom: 9, shoes: 4, eyes: 0, mouth: 0, acc: 0, accColor: 0 };
+  return { head: 1, body: 1, arms: 1, legs: 1, cape: 0, hat: 0, tintHead: 0, tintBody: 0, tintArms: 0, tintLegs: 0, tintCape: 0, tintHat: 0, height: 2, ears: 1 };
 }
 
 export function randomLook(rnd: () => number = Math.random): Look {
   const pick = (n: number) => Math.floor(rnd() * n);
+  const cls = pick(CLASSES.length);
+  const mix = (p: number) => (rnd() < p ? pick(CLASSES.length) : cls); // mostly one class with a twist
   return {
-    skin: pick(SKIN.length), hair: pick(HAIR_STYLES.length), hairColor: pick(HAIR_COLORS.length),
-    hat: rnd() < 0.55 ? 0 : pick(HATS.length), hatColor: pick(CLOTH.length),
-    top: pick(CLOTH.length), bottom: pick(CLOTH.length), shoes: pick(CLOTH.length),
-    eyes: pick(EYES.length), mouth: pick(MOUTHS.length),
-    acc: rnd() < 0.5 ? 0 : pick(ACCESSORIES.length), accColor: pick(CLOTH.length),
+    head: mix(0.35), body: cls, arms: mix(0.3), legs: mix(0.3),
+    cape: rnd() < 0.5 ? 0 : pick(CAPES.length), hat: rnd() < 0.45 ? 0 : pick(HATS.length),
+    tintHead: rnd() < 0.6 ? 0 : pick(TINTS.length), tintBody: pick(TINTS.length), tintArms: rnd() < 0.5 ? 0 : pick(TINTS.length), tintLegs: pick(TINTS.length),
+    tintCape: pick(TINTS.length), tintHat: pick(TINTS.length), height: pick(HEIGHTS), ears: rnd() < 0.8 ? 1 : 0,
   };
 }
 
@@ -61,13 +67,13 @@ export function sanitizeLook(raw: unknown): Look {
   return out;
 }
 
-/** "0.1.1.0.3.2.9.4.0.0.0.0" — short enough to live in the room state. */
+/** "k.1.1.1.1.0.0.0.0.0.0.0.0.2.1" — short enough to live in the room state. */
 export function encodeLook(l: Look): string {
-  return KEYS.map((k) => l[k]).join('.');
+  return 'k.' + KEYS.map((k) => l[k]).join('.');
 }
 export function decodeLook(s: string | undefined | null): Look {
-  if (!s) return defaultLook();
-  const parts = s.split('.').map((x) => Number(x));
+  if (!s || !s.startsWith('k.')) return defaultLook();
+  const parts = s.slice(2).split('.').map((x) => Number(x));
   const obj: Record<string, number> = {};
   KEYS.forEach((k, i) => { obj[k] = parts[i]; });
   return sanitizeLook(obj);

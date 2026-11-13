@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { NAME_RADIUS_NIGHT } from '../../../../../shared/nightfall2/constants';
 import { decodeLook } from '../../../../../shared/nightfall2/look';
 import { emoteAnim, env, jumps, positions, useNf2, type Roster } from '../store';
-import { ElfCharacter } from './ElfCharacter';
+import { KayCharacter } from './KayCharacter';
 import { lerpAngle, newAnim } from './anim';
 import { Overhead } from './Overhead';
 import { useOverhead } from './useOverhead';
@@ -49,7 +49,7 @@ function RemotePlayer({ p, meRef }: { p: Roster; meRef: React.RefObject<THREE.Ve
   });
   return (
     <group ref={group}>
-      <ElfCharacter look={look} animRef={anim} alive={p.alive} />
+      <KayCharacter look={look} animRef={anim} alive={p.alive} />
       <group ref={tag} position={[0, 2.25, 0]}>
         <Billboard>
           <Text fontSize={0.26} color="#fff" outlineWidth={0.02} outlineColor="#000" anchorY="bottom">

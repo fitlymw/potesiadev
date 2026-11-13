@@ -7,7 +7,7 @@ import { step } from '../../../../../shared/nightfall2/physics';
 import { decodeLook } from '../../../../../shared/nightfall2/look';
 import { jump, sendEmote, sendInput } from '../net';
 import { camera as cam, emoteAnim, env, input, jumps, positions, useNf2 } from '../store';
-import { ElfCharacter } from './ElfCharacter';
+import { KayCharacter } from './KayCharacter';
 import { newAnim } from './anim';
 import { Overhead } from './Overhead';
 import { useOverhead } from './useOverhead';
@@ -129,7 +129,7 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
   if (!mine) return null;
   return (
     <group ref={group}>
-      <ElfCharacter look={look} animRef={anim} alive={mine.alive} />
+      <KayCharacter look={look} animRef={anim} alive={mine.alive} />
       <pointLight ref={light} position={[-0.4, 1.0, 0.3]} color="#ffb860" intensity={0} distance={8} decay={2} />
       <Overhead text={over.text} emote={over.emote} />
     </group>

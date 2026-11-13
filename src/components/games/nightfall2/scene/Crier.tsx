@@ -5,11 +5,12 @@ import * as THREE from 'three';
 import { CRIER_SPOT } from '../../../../../shared/nightfall2/town';
 import type { Look } from '../../../../../shared/nightfall2/look';
 import { env, useNf2 } from '../store';
-import { ElfCharacter } from './ElfCharacter';
+import { KayCharacter } from './KayCharacter';
 import { newAnim } from './anim';
 import type { TEXT } from '../texts';
 
-const CRIER_LOOK: Look = { skin: 1, hair: 0, hairColor: 4, hat: 2, hatColor: 9, top: 9, bottom: 7, shoes: 4, eyes: 2, mouth: 1, acc: 1, accColor: 7 };
+/** An old hooded Rogue in a Mage's robe and a dark cape. */
+const CRIER_LOOK: Look = { head: 1, body: 2, arms: 2, legs: 2, cape: 2, hat: 4, tintHead: 10, tintBody: 10, tintArms: 10, tintLegs: 9, tintCape: 10, tintHat: 10, height: 1, ears: 1 };
 
 /**
  * The Town Crier: an old hooded elf who steps up to the well as night falls, rings the bell and
@@ -45,7 +46,7 @@ export function Crier({ t }: { t: (typeof TEXT)['id'] }) {
 
   return (
     <group ref={group} position={[CRIER_SPOT.x, -2.6, CRIER_SPOT.z]} rotation={[0, CRIER_SPOT.rot, 0]}>
-      <ElfCharacter look={CRIER_LOOK} animRef={anim} scale={1.08} />
+      <KayCharacter look={CRIER_LOOK} animRef={anim} scale={1.08} />
       {/* the bell in the right hand */}
       <mesh position={[0.36, 0.78, 0.05]}>
         <coneGeometry args={[0.1, 0.16, 10, 1, true]} />
