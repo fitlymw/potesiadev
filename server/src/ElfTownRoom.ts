@@ -23,8 +23,9 @@ import {
 import { colliders, houseAt, nightSeat, spawnPoint } from '../../shared/nightfall2/town.ts';
 import { distance, step } from '../../shared/nightfall2/physics.ts';
 import { decodeLook, encodeLook } from '../../shared/nightfall2/look.ts';
-import type { ChatEvent, ChatMsg, EmoteEvent, EmoteMsg, InputMsg, JoinOptions, JumpEvent, NewsEvent, RoleEvent, SetupEvent, SystemEvent } from '../../shared/nightfall2/messages.ts';
+import type { ChatEvent, ChatMsg, EmoteEvent, EmoteMsg, InputMsg, JoinOptions, JumpEvent, NewsEvent, NightActionMsg, ReportEvent, RoleEvent, SetupEvent, SystemEvent, TurnEvent } from '../../shared/nightfall2/messages.ts';
 import { composeNews, emptyStats, type DayStats } from './news.ts';
+import { Round } from './round.ts';
 // Nightfall Deception's own dealer and role book, so the mix is exactly the one the first game uses
 import { NF_MAX_PLAYERS, NF_MIN_PLAYERS, dealRoles, setupFor } from '@/lib/party/nightfall';
 import type { RoleId } from '@/data/nightfallRoles';
@@ -57,9 +58,11 @@ export class TownState extends Schema {
   declare day: number;
   /** A round with dealt roles is in progress (the lobby is just the town). */
   declare roundLive: boolean;
+  /** Who the Crier is questioning right now — public, like holding the phone in the first game. */
+  declare turnName: string;
   declare players: MapSchema<Player>;
 }
-defineTypes(TownState, { code: 'string', lang: 'string', phase: 'string', phaseEndsAt: 'number', day: 'number', roundLive: 'boolean', players: { map: Player } });
+defineTypes(TownState, { code: 'string', lang: 'string', phase: 'string', phaseEndsAt: 'number', day: 'number', roundLive: 'boolean', turnName: 'string', players: { map: Player } });
 
 const BOXES = colliders();
 
@@ -89,6 +92,10 @@ export class ElfTownRoom extends Room<TownState> {
   private stats: DayStats = emptyStats();
   /** sessionId → dealt role. Server-side only; never part of the synchronised state. */
   private roles = new Map<string, RoleId>();
+  /** The running round of Nightfall Deception, and which seat each player holds in it. */
+  private round: Round | null = null;
+  private seatOfId = new Map<string, number>();
+  private idOfSeat: string[] = [];
   private seed = Math.floor(Math.random() * 1000);
 
   async onCreate(options: JoinOptions) {
@@ -100,6 +107,7 @@ export class ElfTownRoom extends Room<TownState> {
     state.phaseEndsAt = 0;
     state.day = 0;
     state.roundLive = false;
+    state.turnName = '';
     state.players = new MapSchema<Player>();
     this.setState(state);
     await this.setMetadata({ code: state.code, lang: state.lang });
@@ -114,6 +122,7 @@ export class ElfTownRoom extends Room<TownState> {
     this.onMessage<EmoteMsg>('emote', (client, msg) => this.emote(client, msg));
     this.onMessage('jump', (client) => this.jump(client));
     this.onMessage('start', (client) => this.hostOnly(client, () => this.startRound()));
+    this.onMessage<NightActionMsg>('nightAction', (client, msg) => this.nightAction(client, msg));
     this.onMessage('skip', (client) => this.voteSkip(client));
     this.onMessage('lobby', (client) => this.hostOnly(client, () => this.toLobby()));
 
@@ -174,19 +183,79 @@ export class ElfTownRoom extends Room<TownState> {
     const canDeal = ids.length >= NF_MIN_PLAYERS && ids.length <= NF_MAX_PLAYERS;
     this.roles.clear();
     if (canDeal) {
-      const { roles } = dealRoles(ids.length, Math.random, 'standard');
+      this.seatOfId = new Map(ids.map((id, i) => [id, i]));
+      this.idOfSeat = ids;
+      const names = ids.map((id) => this.state.players.get(id)?.name ?? '?');
+      this.round = new Round(names, this.state.lang);
       ids.forEach((id, i) => {
-        const role = roles[i];
+        const role = this.round!.roleOf(i);
         this.roles.set(id, role);
         this.clients.find((c) => c.sessionId === id)?.send('role', { role } satisfies RoleEvent);
       });
       const [luminaries, cursed, shadows, bosses] = setupFor(ids.length, 'standard');
       this.broadcast('setup', { players: ids.length, luminaries, cursed, shadows, bosses } satisfies SetupEvent);
-    } else {
-      this.broadcast('system', { key: 'needPlayers', day: ids.length } satisfies SystemEvent);
+      this.state.roundLive = true;
+      this.beginPhase('night', 1); // Nightfall Deception opens on the first night
+      this.askNext();
+      return;
     }
-    this.state.roundLive = canDeal;
+    this.broadcast('system', { key: 'needPlayers', day: ids.length } satisfies SystemEvent);
+    this.state.roundLive = false;
     this.beginPhase('day', 1);
+  }
+
+  /**
+   * Hand the turn to whoever the engine is asking, privately. Everyone else only sees the name,
+   * exactly as everyone can see who is holding the phone in the first game.
+   */
+  private askNext() {
+    const round = this.round;
+    if (!round) return;
+    const turn = round.turn();
+    if (!turn) {
+      this.endNight();
+      return;
+    }
+    const id = this.idOfSeat[turn.seat];
+    this.state.turnName = round.names[turn.seat];
+    this.clients.find((c) => c.sessionId === id)?.send('turn', {
+      seat: turn.seat,
+      kind: turn.kind,
+      count: turn.count,
+      accept: turn.accept,
+      allowSelf: turn.allowSelf,
+      pool: turn.pool,
+      prompt: turn.prompt,
+      suspect: turn.suspect,
+      candidates: turn.candidates.map((c) => ({ seat: c, name: round.names[c] })),
+    } satisfies TurnEvent);
+  }
+
+  private nightAction(client: Client, msg: NightActionMsg) {
+    const round = this.round;
+    const seat = this.seatOfId.get(client.sessionId);
+    if (!round || seat === undefined || this.state.phase !== 'night') return;
+    const targets = Array.isArray(msg?.targets) ? msg.targets.filter((t) => Number.isInteger(t)) : [];
+    const suspect = Number.isInteger(msg?.suspect) ? msg.suspect : undefined;
+    if (!round.submit(seat, targets, suspect)) return;
+    this.askNext();
+  }
+
+  /** The lap is over: resolve the night, tell each player what they learned, then morning. */
+  private endNight() {
+    const round = this.round;
+    if (!round) return;
+    this.state.turnName = '';
+    // the engine clears its public events when it leaves the night-end screen, so read them first
+    const lines = round.morningLines();
+    round.finishNight();
+    this.idOfSeat.forEach((id, seat) => {
+      const reported = round.reportLines(seat);
+      if (reported.length) this.clients.find((c) => c.sessionId === id)?.send('report', { lines: reported } satisfies ReportEvent);
+    });
+    this.broadcast('news', { day: round.night, lang: this.state.lang, lines } satisfies NewsEvent);
+    round.toDay();
+    this.beginPhase('day', round.night);
   }
 
   /** Ending a phase early takes everyone: each player presses, and the room sees the tally. */
@@ -251,8 +320,8 @@ export class ElfTownRoom extends Room<TownState> {
     this.state.day = day;
     this.state.phaseEndsAt = Date.now() + (phase === 'day' ? DAY_SECONDS : NIGHT_SECONDS) * 1000;
     this.broadcast('system', { key: phase === 'day' ? (day === 1 ? 'started' : 'day') : 'night', day } satisfies SystemEvent);
-    if (phase === 'night') {
-      // The Crier reads the day's gossip; the day's statistics start fresh at dawn.
+    if (phase === 'night' && !this.round) {
+      // Outside a dealt round the Crier just reads the day's gossip.
       const names = new Map<string, string>();
       this.state.players.forEach((p, id) => names.set(id, p.name));
       const lines = composeNews(this.state.lang, day, names, this.stats, this.seed);
@@ -263,6 +332,14 @@ export class ElfTownRoom extends Room<TownState> {
   }
 
   private nextPhase() {
+    if (this.round) {
+      // in a dealt round the night ends when the Crier has asked everyone, not on a vote
+      if (this.state.phase !== 'day') return;
+      this.round.endDay();
+      this.beginPhase('night', this.round.night);
+      this.askNext();
+      return;
+    }
     if (this.state.phase === 'day') this.beginPhase('night');
     else if (this.state.phase === 'night') this.beginPhase('day', this.state.day + 1);
   }
@@ -270,6 +347,10 @@ export class ElfTownRoom extends Room<TownState> {
   private toLobby() {
     this.clearReady();
     this.roles.clear();
+    this.round = null;
+    this.seatOfId.clear();
+    this.idOfSeat = [];
+    this.state.turnName = '';
     this.state.roundLive = false;
     this.state.phase = 'lobby';
     this.state.phaseEndsAt = 0;

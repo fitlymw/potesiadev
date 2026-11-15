@@ -29,6 +29,23 @@ export interface SystemEvent {
 }
 /** Your own dealt role, sent only to you — it is never part of the shared room state. */
 export interface RoleEvent { role: string }
+/** The turn the Crier is giving you tonight: what to choose, in Nightfall Deception's own words. */
+export interface TurnEvent {
+  seat: number;
+  kind: string;
+  count: number;
+  accept: number[];
+  allowSelf: boolean;
+  pool: 'alive' | 'dead' | 'seat';
+  prompt: string;
+  suspect: boolean;
+  candidates: { seat: number; name: string }[];
+}
+/** What you choose on your turn. */
+export interface NightActionMsg { targets: number[]; suspect?: number }
+/** What you alone learned during the night. */
+export interface ReportEvent { lines: string[] }
+
 /** How the round was dealt: everyone may know the mix, nobody knows who holds what. */
 export interface SetupEvent { players: number; luminaries: number; cursed: number; shadows: number; bosses: number }
 

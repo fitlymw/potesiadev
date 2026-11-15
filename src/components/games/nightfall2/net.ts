@@ -1,6 +1,6 @@
 import { Client, type Room, getStateCallbacks } from 'colyseus.js';
 import { JUMP_DURATION_MS, ROOM_NAME, type Lang } from '../../../../shared/nightfall2/constants';
-import type { ChatEvent, EmoteEvent, InputMsg, JoinOptions, JumpEvent, LobbyLookup, NewsEvent, RoleEvent, SetupEvent, SystemEvent } from '../../../../shared/nightfall2/messages';
+import type { ChatEvent, EmoteEvent, InputMsg, JoinOptions, JumpEvent, LobbyLookup, NewsEvent, ReportEvent, RoleEvent, SetupEvent, SystemEvent, TurnEvent } from '../../../../shared/nightfall2/messages';
 import { emoteAnim, jumps, nf2, positions, speaking, speakingMs, type Roster } from './store';
 import { sfxBell, sfxDawn, sfxEmote, sfxHush, sfxJump } from './sounds';
 import { speakNews, stopSpeech } from './speech';
@@ -107,10 +107,16 @@ function bind(r: Room) {
     const prev = nf2.get().phase;
     const phase = r.state.phase;
     nf2.set({ phase, phaseEndsAt: r.state.phaseEndsAt, day: r.state.day, code: r.state.code, lang: r.state.lang === 'en' ? 'en' : 'id', status: phase === 'lobby' ? 'lobby' : 'playing' });
-    if (prev === 'night' && phase !== 'night') {
-      stopSpeech();
-      nf2.set({ crier: null });
-      if (phase === 'day') sfxDawn();
+    // the morning bulletin is read at dawn and stays readable through the day; a new night clears it
+    if (prev === 'night' && phase === 'day') sfxDawn();
+    // Clear yesterday's bulletin when the phase turns over — but a bulletin for the night we are
+    // entering may already have arrived (messages outrun state patches), so keep that one.
+    if (phase !== prev && (phase === 'night' || phase === 'lobby')) {
+      const held = nf2.get().crier;
+      if (phase === 'lobby' || !held || held.day !== r.state.day) {
+        stopSpeech();
+        nf2.set({ crier: null });
+      }
     }
   };
 
@@ -146,6 +152,7 @@ function bind(r: Room) {
   $(r.state).listen('day', syncPhase);
   $(r.state).listen('code', syncPhase);
   $(r.state).listen('lang', syncPhase);
+  $(r.state).listen('turnName', () => nf2.set({ turnName: r.state.turnName }));
   $(r.state).listen('roundLive', () => nf2.set({ roundLive: r.state.roundLive, ...(r.state.roundLive ? {} : { myRole: null, setup: null }) }));
 
   r.onMessage<ChatEvent>('chat', (ev) => {
@@ -161,6 +168,8 @@ function bind(r: Room) {
   });
   r.onMessage<JumpEvent>('jump', (ev) => jumps.set(ev.from, performance.now()));
   r.onMessage<RoleEvent>('role', (ev) => nf2.set({ myRole: ev.role }));
+  r.onMessage<TurnEvent>('turn', (ev) => nf2.set({ turn: ev }));
+  r.onMessage<ReportEvent>('report', (ev) => nf2.set({ report: ev.lines }));
   r.onMessage<SetupEvent>('setup', (ev) => nf2.set({ setup: ev }));
   r.onMessage<NewsEvent>('news', (ev) => {
     nf2.set({ crier: { day: ev.day, lang: ev.lang, lines: ev.lines, index: -1 } });
@@ -188,6 +197,9 @@ export function sendInput(msg: InputMsg) {
 }
 export function sendChat(text: string) {
   room?.send('chat', { text });
+}
+export function sendNightAction(targets: number[], suspect?: number) {
+  room?.send('nightAction', { targets, suspect });
 }
 export function sendEmote(id: number) {
   room?.send('emote', { id });

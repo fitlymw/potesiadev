@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { Lang, Phase } from '../../../../shared/nightfall2/constants';
-import type { ChatEvent, SetupEvent, SystemEvent } from '../../../../shared/nightfall2/messages';
+import type { ChatEvent, SetupEvent, SystemEvent, TurnEvent } from '../../../../shared/nightfall2/messages';
 
 /** Slow-changing data React renders from. */
 export interface Roster { id: string; name: string; color: string; look: string; host: boolean; alive: boolean; ready: boolean; seated: boolean }
@@ -27,9 +27,14 @@ export interface Nf2State {
   myRole: string | null;
   setup: SetupEvent | null;
   roundLive: boolean;
+  /** Who the Crier is questioning (everyone sees this). */
+  turnName: string;
+  /** Your own turn, if it is yours; and what you alone learned at dawn. */
+  turn: TurnEvent | null;
+  report: string[] | null;
 }
 
-const initial: Nf2State = { status: 'idle', error: '', code: '', lang: 'id', phase: 'lobby', phaseEndsAt: 0, day: 0, me: '', roster: [], chat: [], notices: [], emotes: {}, speakingUntil: {}, crier: null, myRole: null, setup: null, roundLive: false };
+const initial: Nf2State = { status: 'idle', error: '', code: '', lang: 'id', phase: 'lobby', phaseEndsAt: 0, day: 0, me: '', roster: [], chat: [], notices: [], emotes: {}, speakingUntil: {}, crier: null, myRole: null, setup: null, roundLive: false, turnName: '', turn: null, report: null };
 let state: Nf2State = initial;
 const subs = new Set<() => void>();
 

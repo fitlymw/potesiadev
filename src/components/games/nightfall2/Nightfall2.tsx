@@ -22,6 +22,7 @@ import { Joystick } from './ui/Joystick';
 import { EmoteWheel } from './ui/EmoteWheel';
 import { CharacterEditor } from './ui/CharacterEditor';
 import { RoleCard } from './ui/RolePanel';
+import { NightReport, NightTurn, TurnWatcher } from './ui/NightTurn';
 
 const PIXEL = { fontFamily: '"Press Start 2P", cursive' };
 
@@ -161,6 +162,9 @@ function GameView({ t, lang, touch }: { t: (typeof TEXT)['id']; lang: Lang; touc
       <Hud t={t} lang={lang} touch={touch} />
       {phase === 'lobby' && <LobbyBar t={t} />}
       <RoleCard t={t} lang={lang} />
+      <NightTurn t={t} />
+      <TurnWatcher t={t} />
+      <NightReport t={t} />
       <Chat t={t} touch={touch} />
       {/* action column: emote above jump, on the right (the chat button sits at the bottom on phones) */}
       <EmoteWheel t={t} corner={touch} className={touch ? 'bottom-44 right-5' : 'bottom-4 right-[22rem]'} />
