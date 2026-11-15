@@ -8,20 +8,21 @@ import { emoteAnim, env, jumps, positions, useNf2, type Roster } from '../store'
 import { KayCharacter } from './KayCharacter';
 import { lerpAngle, newAnim } from './anim';
 import { Overhead } from './Overhead';
+import type { TEXT } from '../texts';
 import { useOverhead } from './useOverhead';
 
 /** Everyone except me, smoothed towards the server's 20 Hz positions. */
-export function RemotePlayers({ meRef }: { meRef: React.RefObject<THREE.Vector3> }) {
+export function RemotePlayers({ meRef, t }: { meRef: React.RefObject<THREE.Vector3>; t: (typeof TEXT)['id'] }) {
   const roster = useNf2((s) => s.roster);
   const me = useNf2((s) => s.me);
   return (
     <>
-      {roster.filter((p) => p.id !== me).map((p) => <RemotePlayer key={p.id} p={p} meRef={meRef} />)}
+      {roster.filter((p) => p.id !== me).map((p) => <RemotePlayer key={p.id} p={p} meRef={meRef} t={t} />)}
     </>
   );
 }
 
-function RemotePlayer({ p, meRef }: { p: Roster; meRef: React.RefObject<THREE.Vector3> }) {
+function RemotePlayer({ p, meRef, t }: { p: Roster; meRef: React.RefObject<THREE.Vector3>; t: (typeof TEXT)['id'] }) {
   const group = useRef<THREE.Group>(null);
   const tag = useRef<THREE.Group>(null);
   const anim = useRef(newAnim());
@@ -58,7 +59,7 @@ function RemotePlayer({ p, meRef }: { p: Roster; meRef: React.RefObject<THREE.Ve
           </Text>
         </Billboard>
       </group>
-      <Overhead text={over.text} emote={over.emote} />
+      <Overhead text={over.text} emote={over.emote} emoteLabel={over.emote === undefined ? undefined : t.emoteNames[over.emote]} />
     </group>
   );
 }

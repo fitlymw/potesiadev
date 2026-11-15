@@ -13,8 +13,8 @@ export type District = 'plaza' | 'market' | 'grove' | 'lanternRow' | 'oldQuarter
 export type WallStyle = 'stone' | 'wood';
 export type Side = 'N' | 'S' | 'E' | 'W';
 
-/** Kenney Fantasy Town tiles are 1 unit; scaled so a wall is 2.5 m tall and a doorway ~1.9 m. */
-export const TILE = 2.5;
+/** Kenney Fantasy Town tiles are 1 unit; scaled so a wall is 3 m tall and a doorway ~2.3 m. */
+export const TILE = 3;
 /** Kenney Nature trees are tiny; scaled so an oak is ~4.7 m. */
 export const TREE_SCALE = 4;
 
@@ -59,22 +59,27 @@ export const WALL_THICK = 0.3;
 
 // ---------------------------------------------------------------- houses
 
-/** KayKit Furniture Bits are chunky (a bed is 1.6 × 3 units); drawn at this scale. */
+/** /** KayKit Furniture Bits are chunky (a bed is 1.6 x 3 units); drawn at this scale. */
 export const FURNITURE_SCALE = 0.6;
 
-/** Colliders are in metres at FURNITURE_SCALE: bed 1.0 × 1.8, cabinet 1.2 × 0.6, table 1.2 × 1.2, chair 0.45. */
+/**
+ * Rooms are big enough for a whole group, so furniture hugs the walls and leaves the middle
+ * clear — that is where players stand to talk. Colliders are in metres at FURNITURE_SCALE.
+ */
 function furnishings(w: number, d: number): Furniture[] {
   const hw = (w * TILE) / 2, hd = (d * TILE) / 2;
   const out: Furniture[] = [
-    { name: 'bed_single_A', dx: -hw + 0.85, dz: -hd + 1.25, rot: 0, hw: 0.5, hd: 0.9 },
-    { name: 'cabinet_medium', dx: hw - 0.5, dz: -hd + 1.0, rot: -Math.PI / 2, hw: 0.6, hd: 0.3 },
+    { name: 'bed_single_A', dx: -hw + 0.9, dz: -hd + 1.3, rot: 0, hw: 0.5, hd: 0.9 },
+    { name: 'cabinet_medium', dx: hw - 0.5, dz: -hd + 1.2, rot: -Math.PI / 2, hw: 0.6, hd: 0.3 },
+    { name: 'table_medium', dx: hw - 1.6, dz: hd - 1.6, rot: 0, hw: 0.6, hd: 0.6 },
+    { name: 'chair_A', dx: hw - 1.6, dz: hd - 0.6, rot: Math.PI, hw: 0.23, hd: 0.23 },
+    { name: 'chair_A', dx: hw - 2.6, dz: hd - 1.6, rot: -Math.PI / 2, hw: 0.23, hd: 0.23 },
+    { name: 'shelf_B_large', dx: -hw + 0.35, dz: hd - 2.0, rot: Math.PI / 2, hw: 0.6, hd: 0.3 },
   ];
-  if (w >= 3 || d >= 3) {
-    out.push({ name: 'table_medium', dx: 0.4, dz: 0.3, rot: 0, hw: 0.6, hd: 0.6 });
-    out.push({ name: 'chair_A', dx: 0.4, dz: 1.3, rot: Math.PI, hw: 0.23, hd: 0.23 });
-    out.push({ name: 'chair_A', dx: 0.4, dz: -0.7, rot: 0, hw: 0.23, hd: 0.23 });
+  if (w >= 5 || d >= 5) {
+    out.push({ name: 'bed_single_A', dx: -hw + 0.9, dz: -hd + 3.4, rot: 0, hw: 0.5, hd: 0.9 });
+    out.push({ name: 'table_medium', dx: -hw + 2.4, dz: hd - 1.6, rot: 0, hw: 0.6, hd: 0.6 });
   }
-  if (w >= 3 && d >= 3) out.push({ name: 'shelf_B_large', dx: -hw + 0.35, dz: hd - 1.6, rot: Math.PI / 2, hw: 0.6, hd: 0.3 });
   return out;
 }
 
@@ -89,20 +94,23 @@ function h(x: number, z: number, w: number, d: number, floors: number, district:
 }
 
 export const HOUSES: House[] = [
-  // Market (east): stalls and a two-storey tavern around a small square
-  h(18, -5, 2, 2, 1, 'market'), h(18, 5, 2, 2, 1, 'market'), h(27, 0, 3, 4, 2, 'market', 'gable', 'W'),
-  h(24, -11, 2, 2, 1, 'market', 'point'), h(24, 11, 2, 2, 1, 'market', 'point'), h(33, -8, 2, 2, 1, 'market', 'point'), h(33, 8, 2, 2, 1, 'market', 'point'),
-  // Grove (north): wooden cottages among giant trees
-  h(-7, -20, 2, 2, 1, 'grove', 'point'), h(7, -22, 2, 2, 1, 'grove'), h(0, -31, 3, 2, 2, 'grove', 'gable', 'N'),
-  h(-15, -29, 2, 2, 1, 'grove', 'point'), h(15, -31, 2, 2, 1, 'grove', 'point'),
-  // Lantern Row (south of the river): a straight street of tall narrow wooden houses
-  h(-12, 21, 2, 2, 2, 'lanternRow'), h(-6, 21, 2, 2, 2, 'lanternRow'), h(0, 21, 2, 2, 2, 'lanternRow'),
-  h(6, 21, 2, 2, 2, 'lanternRow'), h(12, 21, 2, 2, 2, 'lanternRow'),
-  h(-9, 31, 2, 2, 1, 'lanternRow', 'point', 'N'), h(0, 32, 3, 2, 2, 'lanternRow', 'gable', 'N'), h(9, 31, 2, 2, 1, 'lanternRow', 'point', 'N'),
-  // Old Quarter (west): a tight maze of small stone houses and the old tower
-  h(-18, -6, 2, 2, 1, 'oldQuarter', 'point'), h(-18, 6, 2, 2, 1, 'oldQuarter', 'point'),
-  h(-25, -12, 2, 2, 1, 'oldQuarter'), h(-25, 0, 2, 3, 2, 'oldQuarter', 'gable', 'E'), h(-25, 12, 2, 2, 1, 'oldQuarter'),
-  h(-33, -6, 2, 2, 1, 'oldQuarter'), h(-33, 6, 2, 2, 1, 'oldQuarter'), h(-37, 0, 2, 2, 3, 'oldQuarter', 'point', 'E'), // the old tower
+  // Market (north-east): the tavern closes off the east street, two shops behind it
+  h(28, -4, 5, 4, 2, 'market', 'gable', 'W'),
+  h(16, -19, 4, 4, 1, 'market'),
+  h(33, -20, 4, 4, 1, 'market', 'point'),
+  // Old Quarter (north-west): a long hall and two stone houses
+  h(-28, -4, 5, 4, 2, 'oldQuarter', 'gable', 'E'),
+  h(-16, -19, 4, 4, 1, 'oldQuarter'),
+  h(-33, -20, 4, 4, 1, 'oldQuarter', 'point'),
+  // Grove (north): wooden cottages among the giant oaks
+  h(0, -32, 4, 4, 1, 'grove', 'point'),
+  h(-14, -34, 4, 3, 1, 'grove'),
+  h(14, -34, 4, 3, 1, 'grove'),
+  // Lantern Row (south of the river): three big halls facing the bridge, one behind
+  h(-16, 24, 4, 4, 2, 'lanternRow'),
+  h(0, 24, 4, 4, 2, 'lanternRow'),
+  h(16, 24, 4, 4, 2, 'lanternRow'),
+  h(0, 37, 4, 3, 1, 'lanternRow', 'point', 'E'), // tucked behind the row, entered from the side lane
 ];
 
 export function houseBounds(hs: House): AABB {
@@ -110,8 +118,8 @@ export function houseBounds(hs: House): AABB {
   return { minX: hs.x - hw, maxX: hs.x + hw, minZ: hs.z - hd, maxZ: hs.z + hd };
 }
 
-/** Walls as thin boxes with a one-tile gap where the doorway is, plus the furniture. */
-export function houseColliders(hs: House): AABB[] {
+/** Walls as thin boxes with a one-tile gap where the doorway is. */
+export function houseWalls(hs: House): AABB[] {
   const b = houseBounds(hs);
   const t = WALL_THICK;
   const out: AABB[] = [];
@@ -133,12 +141,26 @@ export function houseColliders(hs: House): AABB[] {
       seg(x0, x1, doorZ0 + TILE, b.maxZ);
     } else seg(x0, x1, b.minZ, b.maxZ);
   }
+  return out;
+}
+
+/** The walls plus the furniture standing in the room. */
+export function houseColliders(hs: House): AABB[] {
+  const out = houseWalls(hs);
   for (const f of hs.furniture) {
     const swap = Math.abs(Math.sin(f.rot)) > 0.5;
     const hw = swap ? f.hd : f.hw, hd = swap ? f.hw : f.hd;
     out.push({ minX: hs.x + f.dx - hw, maxX: hs.x + f.dx + hw, minZ: hs.z + f.dz - hd, maxZ: hs.z + f.dz + hd });
   }
   return out;
+}
+
+/**
+ * Only the house walls: tall enough to hide a player, so they are what the camera must stay on
+ * this side of. Furniture and bushes are below the camera and are ignored on purpose.
+ */
+export function wallColliders(): AABB[] {
+  return HOUSES.flatMap(houseWalls);
 }
 
 /** Index of the house whose footprint contains (x, z), or -1. */
@@ -152,14 +174,14 @@ export function houseAt(x: number, z: number): number {
 
 // ---------------------------------------------------------------- high ground
 
-/** Watchtower hill (NW, 2 m) with a ramp on its east side; Lookout rock (SE, 1 m) with steps north. */
+/** Watchtower hill (far north-west, 2 m) with a ramp on its east side; lookout rock (south-east, 1 m) with steps. */
 export const PLATFORMS: Platform[] = [
-  { minX: -34, maxX: -27, minZ: -35, maxZ: -28, h: 2 },
-  { minX: 24, maxX: 30, minZ: 23, maxZ: 27, h: 1 },
+  { minX: -40, maxX: -32, minZ: -40, maxZ: -32, h: 2 },
+  { minX: 31, maxX: 37, minZ: 20, maxZ: 26, h: 1 },
 ];
 export const RAMPS: Ramp[] = [
-  { minX: -27, maxX: -24, minZ: -33, maxZ: -30, h0: 2, h1: 0, axis: 'x' }, // down towards +x
-  { minX: 25, maxX: 29, minZ: 21.5, maxZ: 23, h0: 0, h1: 1, axis: 'z' }, // up towards +z (steps)
+  { minX: -32, maxX: -28, minZ: -38, maxZ: -34, h0: 2, h1: 0, axis: 'x' }, // down towards +x
+  { minX: 27, maxX: 31, minZ: 22, maxZ: 25, h0: 0, h1: 1, axis: 'x' }, // up towards +x
 ];
 
 /** Height of the walkable ground at (x, z). */
@@ -211,11 +233,12 @@ export const TREES: Tree[] = (() => {
 
 export const LANTERNS: Lantern[] = [
   { x: 6, z: 6 }, { x: -6, z: 6 }, { x: 6, z: -6 }, { x: -6, z: -6 }, // plaza corners
-  { x: -2.8, z: 9.8 }, { x: 2.8, z: 9.8 }, { x: -2.8, z: 14.4 }, { x: 2.8, z: 14.4 }, // main bridge ends
-  { x: -9, z: 16.5 }, { x: 9, z: 16.5 }, // Lantern Row
-  { x: 21, z: 0 }, { x: 30, z: -4.5 }, { x: 30, z: 4.5 }, // market
-  { x: -21, z: 0 }, { x: -29, z: -3 }, // old quarter
-  { x: 0, z: -16 }, { x: 0, z: -26 }, // grove path
+  { x: -3.2, z: 9.6 }, { x: 3.2, z: 9.6 }, { x: -3.2, z: 14.6 }, { x: 3.2, z: 14.6 }, // main bridge ends
+  { x: -9, z: 17 }, { x: 9, z: 17 }, { x: 0, z: 17 }, // the row's street
+  { x: 14, z: 0 }, { x: 19, z: -6 }, // market street
+  { x: -14, z: 0 }, { x: -19, z: -6 }, // old quarter street
+  { x: 0, z: -14 }, { x: 0, z: -24 }, // grove path
+  { x: -26, z: -32 }, { x: 24, z: 20 }, // foot of each climb
 ];
 
 /** Where players appear: a ring around the plaza well. */

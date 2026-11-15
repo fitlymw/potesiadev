@@ -37,6 +37,38 @@ function hits(x: number, z: number, boxes: AABB[]): boolean {
   return false;
 }
 
+/**
+ * How far a ray from (ox, oz) travels before it meets a box, capped at `maxDist`.
+ * Used for the camera: it stops short of a wall instead of ending up behind it.
+ */
+export function rayDistance(ox: number, oz: number, dx: number, dz: number, maxDist: number, boxes: AABB[]): number {
+  let best = maxDist;
+  for (const b of boxes) {
+    let tmin = 0;
+    let tmax = best;
+    if (Math.abs(dx) < 1e-6) {
+      if (ox < b.minX || ox > b.maxX) continue;
+    } else {
+      let t1 = (b.minX - ox) / dx;
+      let t2 = (b.maxX - ox) / dx;
+      if (t1 > t2) [t1, t2] = [t2, t1];
+      tmin = Math.max(tmin, t1);
+      tmax = Math.min(tmax, t2);
+    }
+    if (Math.abs(dz) < 1e-6) {
+      if (oz < b.minZ || oz > b.maxZ) continue;
+    } else {
+      let t1 = (b.minZ - oz) / dz;
+      let t2 = (b.maxZ - oz) / dz;
+      if (t1 > t2) [t1, t2] = [t2, t1];
+      tmin = Math.max(tmin, t1);
+      tmax = Math.min(tmax, t2);
+    }
+    if (tmax >= tmin && tmin < best) best = Math.max(0, tmin);
+  }
+  return best;
+}
+
 /** 3D distance: standing on the hill counts as being further away. */
 export function distance(a: Vec3, b: Vec3): number {
   return Math.hypot(a.x - b.x, a.z - b.z, a.y - b.y);

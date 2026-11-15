@@ -1,7 +1,7 @@
 /**
  * Character customisation (KayKit Adventurers rig). All five classes share one skeleton, so a
  * look mixes parts across classes: head / body / arms / legs each pick a class, plus a cape, a hat,
- * a tint per part, a height and elf ears. Travels as a short "k.…" string in the room state.
+ * a tint per part and a height. Travels as a short "k.…" string in the room state.
  */
 
 export const CLASSES = ['Knight', 'Rogue', 'Mage', 'Barbarian'] as const;
@@ -29,18 +29,17 @@ export interface Look {
   tintCape: number;
   tintHat: number;
   height: number;
-  ears: number;
 }
 
-const KEYS: (keyof Look)[] = ['head', 'body', 'arms', 'legs', 'cape', 'hat', 'tintHead', 'tintBody', 'tintArms', 'tintLegs', 'tintCape', 'tintHat', 'height', 'ears'];
+const KEYS: (keyof Look)[] = ['head', 'body', 'arms', 'legs', 'cape', 'hat', 'tintHead', 'tintBody', 'tintArms', 'tintLegs', 'tintCape', 'tintHat', 'height'];
 const LIMITS: Record<keyof Look, number> = {
   head: CLASSES.length, body: CLASSES.length, arms: CLASSES.length, legs: CLASSES.length, cape: CAPES.length, hat: HATS.length,
   tintHead: TINTS.length, tintBody: TINTS.length, tintArms: TINTS.length, tintLegs: TINTS.length, tintCape: TINTS.length, tintHat: TINTS.length,
-  height: HEIGHTS, ears: 2,
+  height: HEIGHTS,
 };
 
 export function defaultLook(): Look {
-  return { head: 1, body: 1, arms: 1, legs: 1, cape: 0, hat: 0, tintHead: 0, tintBody: 0, tintArms: 0, tintLegs: 0, tintCape: 0, tintHat: 0, height: 2, ears: 1 };
+  return { head: 1, body: 1, arms: 1, legs: 1, cape: 0, hat: 0, tintHead: 0, tintBody: 0, tintArms: 0, tintLegs: 0, tintCape: 0, tintHat: 0, height: 2 };
 }
 
 export function randomLook(rnd: () => number = Math.random): Look {
@@ -51,7 +50,7 @@ export function randomLook(rnd: () => number = Math.random): Look {
     head: mix(0.35), body: cls, arms: mix(0.3), legs: mix(0.3),
     cape: rnd() < 0.5 ? 0 : pick(CAPES.length), hat: rnd() < 0.45 ? 0 : pick(HATS.length),
     tintHead: rnd() < 0.6 ? 0 : pick(TINTS.length), tintBody: pick(TINTS.length), tintArms: rnd() < 0.5 ? 0 : pick(TINTS.length), tintLegs: pick(TINTS.length),
-    tintCape: pick(TINTS.length), tintHat: pick(TINTS.length), height: pick(HEIGHTS), ears: rnd() < 0.8 ? 1 : 0,
+    tintCape: pick(TINTS.length), tintHat: pick(TINTS.length), height: pick(HEIGHTS),
   };
 }
 

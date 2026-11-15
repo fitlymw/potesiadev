@@ -78,20 +78,11 @@ function build(g: Gltfs, look: Look, alive: boolean) {
   if (look.cape > 0) addProp(cls(look.cape - 1), `${CAPES[look.cape]}_Cape`, 'chest', look.tintCape);
   if (hat in KAY_HATS) addProp(KAY_HATS[hat].file, KAY_HATS[hat].node, 'head', look.tintHat);
 
-  // primitive add-ons on the head bone: elf ears and the code-built hats
+  // code-built hats sit on the head bone (the KayKit heads bring their own ears)
   const head = bones.get('head');
   if (head) {
     // bind pose: the head bone sits at y 1.24 with identity axes; the crown of the head is ~1.04 above it
     const top = 1.04;
-    const skin = new THREE.MeshStandardMaterial({ color: '#e9c4a2' });
-    if (look.ears) {
-      for (const s of [-1, 1]) {
-        const ear = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.42, 6), skin);
-        ear.position.set(s * 0.46, top - 0.5, 0.02);
-        ear.rotation.z = s * -1.15;
-        head.add(ear);
-      }
-    }
     const hatMat = new THREE.MeshStandardMaterial({ color: TINTS[look.tintHat] === '#ffffff' ? '#6b4a9c' : TINTS[look.tintHat] });
     if (hat === 'wizard') {
       const cone = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.1, 10), hatMat);

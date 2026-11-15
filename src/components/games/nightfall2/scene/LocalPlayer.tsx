@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { INPUT_SEND_MS, JUMP_DURATION_MS } from '../../../../../shared/nightfall2/constants';
-import { colliders, houseAt, spawnPoint } from '../../../../../shared/nightfall2/town';
-import { step } from '../../../../../shared/nightfall2/physics';
+import { colliders, houseAt, spawnPoint, wallColliders } from '../../../../../shared/nightfall2/town';
+import { rayDistance, step } from '../../../../../shared/nightfall2/physics';
 import { decodeLook } from '../../../../../shared/nightfall2/look';
 import { jump, sendEmote, sendInput } from '../net';
 import { camera as cam, emoteAnim, env, input, jumps, positions, useNf2, view } from '../store';
@@ -11,19 +11,21 @@ import { KayCharacter } from './KayCharacter';
 import { newAnim } from './anim';
 import { Overhead } from './Overhead';
 import { useOverhead } from './useOverhead';
+import type { TEXT } from '../texts';
 
 const BOXES = colliders();
+const WALLS = wallColliders();
 const CAM_DIST = 6.5;
 const CAM_HEIGHT = 3.4;
-/** Inside a house the camera comes in close and looks over the walls (the roof is hidden). */
-const CAM_DIST_IN = 2.6;
-const CAM_HEIGHT_IN = 5.6;
+/** How close the camera may come when a wall is in the way, and the eye height it drops to there. */
+const CAM_DIST_MIN = 1.7;
+const CAM_HEIGHT_MIN = 1.7;
 
 /**
  * My own character: moves immediately from local input (prediction) using the same physics
  * as the server, sends the input ~15×/s, and gently snaps back if the server disagrees.
  */
-export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }) {
+export function LocalPlayer({ meRef, t }: { meRef: React.RefObject<THREE.Vector3>; t: (typeof TEXT)['id'] }) {
   const me = useNf2((s) => s.me);
   const roster = useNf2((s) => s.roster);
   const mine = roster.find((p) => p.id === me);
@@ -34,8 +36,6 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
   const light = useRef<THREE.PointLight>(null);
   const anim = useRef(newAnim());
   const pos = useRef<{ x: number; y: number; z: number } | null>(null);
-  const camDist = useRef(CAM_DIST);
-  const camHeight = useRef(CAM_HEIGHT);
   const rot = useRef(0);
   const lastSend = useRef(0);
   const lastSent = useRef({ x: 0, z: 0 });
@@ -128,12 +128,16 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
     if (light.current) light.current.intensity = env.night * 7;
     meRef.current?.set(p.x, p.y, p.z);
 
-    // third-person camera behind the player (closer and higher inside a house)
-    const inside = view.house >= 0;
-    camDist.current += ((inside ? CAM_DIST_IN : CAM_DIST) - camDist.current) * Math.min(1, dt * 4);
-    camHeight.current += ((inside ? CAM_HEIGHT_IN : CAM_HEIGHT) - camHeight.current) * Math.min(1, dt * 4);
+    // third-person camera behind the player, pulled in by whatever wall is in the way, so it
+    // stays in the room with you instead of looking at the outside of the house
+    const bx = Math.sin(cam.yaw);
+    const bz = Math.cos(cam.yaw);
+    const clear = rayDistance(p.x, p.z, bx, bz, CAM_DIST, WALLS);
+    const dist = Math.max(CAM_DIST_MIN, clear - 0.5);
+    const k2 = (dist - CAM_DIST_MIN) / (CAM_DIST - CAM_DIST_MIN);
+    const height = CAM_HEIGHT_MIN + (CAM_HEIGHT - CAM_HEIGHT_MIN) * k2;
     target.set(p.x, p.y + 1.3, p.z);
-    desired.set(p.x + Math.sin(cam.yaw) * camDist.current, p.y + camHeight.current, p.z + Math.cos(cam.yaw) * camDist.current);
+    desired.set(p.x + bx * dist, p.y + height, p.z + bz * dist);
     camera.position.lerp(desired, 1 - Math.exp(-dt * 9));
     camera.lookAt(target);
   });
@@ -143,7 +147,7 @@ export function LocalPlayer({ meRef }: { meRef: React.RefObject<THREE.Vector3> }
     <group ref={group}>
       <KayCharacter look={look} animRef={anim} alive={mine.alive} />
       <pointLight ref={light} position={[-0.4, 1.0, 0.3]} color="#ffb860" intensity={0} distance={8} decay={2} />
-      <Overhead text={over.text} emote={over.emote} />
+      <Overhead text={over.text} emote={over.emote} emoteLabel={over.emote === undefined ? undefined : t.emoteNames[over.emote]} />
     </group>
   );
 }

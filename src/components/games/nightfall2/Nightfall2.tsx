@@ -152,8 +152,8 @@ function GameView({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
         <Suspense fallback={null}>
           <DayNight />
           <Town />
-          <RemotePlayers meRef={meRef} />
-          <LocalPlayer meRef={meRef} />
+          <RemotePlayers meRef={meRef} t={t} />
+          <LocalPlayer meRef={meRef} t={t} />
           <Crier t={t} />
         </Suspense>
       </Canvas>

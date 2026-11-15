@@ -98,7 +98,6 @@ export function CharacterEditor({ look, onChange, t }: { look: Look; onChange: (
           <PartRow t={t} label={t.parts.cape} names={CAPES.map((_, i) => t.capes[i])} value={look.cape} tint={look.tintCape} onPart={set('cape')} onTint={set('tintCape')} />
           <PartRow t={t} label={t.parts.hat} names={HATS.map((_, i) => t.hats[i])} value={look.hat} tint={look.tintHat} onPart={set('hat')} onTint={set('tintHat')} />
           <Chips label={t.parts.height} names={Array.from({ length: HEIGHTS }, (_, i) => t.heights[i])} value={look.height} onPick={set('height')} />
-          <Chips label={t.parts.ears} names={['✕', '✓']} value={look.ears} onPick={set('ears')} />
         </div>
       )}
     </div>

@@ -10,7 +10,7 @@ import { newAnim } from './anim';
 import type { TEXT } from '../texts';
 
 /** An old hooded Rogue in a Mage's robe and a dark cape. */
-const CRIER_LOOK: Look = { head: 1, body: 2, arms: 2, legs: 2, cape: 2, hat: 4, tintHead: 10, tintBody: 10, tintArms: 10, tintLegs: 9, tintCape: 10, tintHat: 10, height: 1, ears: 1 };
+const CRIER_LOOK: Look = { head: 1, body: 2, arms: 2, legs: 2, cape: 2, hat: 4, tintHead: 10, tintBody: 10, tintArms: 10, tintLegs: 9, tintCape: 10, tintHat: 10, height: 1 };
 
 /**
  * The Town Crier: an old hooded elf who steps up to the well as night falls, rings the bell and

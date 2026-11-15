@@ -20,7 +20,7 @@ import {
   type Lang,
   type Phase,
 } from '../../shared/nightfall2/constants.ts';
-import { colliders, spawnPoint } from '../../shared/nightfall2/town.ts';
+import { colliders, houseAt, spawnPoint } from '../../shared/nightfall2/town.ts';
 import { distance, step } from '../../shared/nightfall2/physics.ts';
 import { decodeLook, encodeLook } from '../../shared/nightfall2/look.ts';
 import type { ChatEvent, ChatMsg, EmoteEvent, EmoteMsg, InputMsg, JoinOptions, JumpEvent, NewsEvent, SystemEvent } from '../../shared/nightfall2/messages.ts';
@@ -197,14 +197,21 @@ export class ElfTownRoom extends Room<TownState> {
     this.broadcast('system', { key: 'lobby' } satisfies SystemEvent);
   }
 
-  /** Everyone within `radius` of `from` (the sender included). */
+  /**
+    * Who can hear `from`. A house is a private room: step inside with someone and the two of
+    * you can talk however loudly, and nobody outside hears a word — not even standing at the
+    * wall. Outside, the plain distance rule applies.
+    */
   private nearby(from: Player, radius: number): { client: Client; dist: number }[] {
     const out: { client: Client; dist: number }[] = [];
+    const room = houseAt(from.x, from.z);
     for (const other of this.clients) {
       const to = this.state.players.get(other.sessionId);
       if (!to) continue;
+      if (houseAt(to.x, to.z) !== room) continue; // different rooms, or one of you is outdoors
       const dist = distance(from, to);
-      if (dist <= radius) out.push({ client: other, dist });
+      if (room < 0 && dist > radius) continue; // outdoors: only as far as the voice carries
+      out.push({ client: other, dist });
     }
     return out;
   }
