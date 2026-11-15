@@ -1,7 +1,7 @@
 import { Client, type Room, getStateCallbacks } from 'colyseus.js';
 import { JUMP_DURATION_MS, ROOM_NAME, type Lang } from '../../../../shared/nightfall2/constants';
 import type { ChatEvent, EmoteEvent, InputMsg, JoinOptions, JumpEvent, LobbyLookup, NewsEvent, RoleEvent, SetupEvent, SystemEvent } from '../../../../shared/nightfall2/messages';
-import { emoteAnim, jumps, nf2, positions, type Roster } from './store';
+import { emoteAnim, jumps, nf2, positions, speaking, speakingMs, type Roster } from './store';
 import { sfxBell, sfxDawn, sfxEmote, sfxHush, sfxJump } from './sounds';
 import { speakNews, stopSpeech } from './speech';
 
@@ -95,6 +95,7 @@ function bind(r: Room) {
   positions.clear();
   jumps.clear();
   emoteAnim.clear();
+  speaking.clear();
   const $ = getStateCallbacks(r);
   const syncRoster = () => {
     const roster: Roster[] = [];
@@ -146,7 +147,10 @@ function bind(r: Room) {
   $(r.state).listen('lang', syncPhase);
   $(r.state).listen('roundLive', () => nf2.set({ roundLive: r.state.roundLive, ...(r.state.roundLive ? {} : { myRole: null, setup: null }) }));
 
-  r.onMessage<ChatEvent>('chat', (ev) => nf2.set({ chat: [...nf2.get().chat.slice(-79), ev] }));
+  r.onMessage<ChatEvent>('chat', (ev) => {
+    speaking.set(ev.from, performance.now() + speakingMs(ev.text)); // their mouth moves while they say it
+    nf2.set({ chat: [...nf2.get().chat.slice(-79), ev] });
+  });
   r.onMessage<EmoteEvent>('emote', (ev) => {
     emoteAnim.set(ev.from, { id: ev.id, start: performance.now() });
     nf2.set({ emotes: { ...nf2.get().emotes, [ev.from]: { id: ev.id, at: Date.now() } } });

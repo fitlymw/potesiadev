@@ -6,7 +6,7 @@ import { colliders, houseAt, spawnPoint, wallColliders } from '../../../../../sh
 import { rayDistance, step } from '../../../../../shared/nightfall2/physics';
 import { decodeLook } from '../../../../../shared/nightfall2/look';
 import { jump, sendEmote, sendInput } from '../net';
-import { camera as cam, emoteAnim, env, input, jumps, positions, useNf2, view } from '../store';
+import { camera as cam, emoteAnim, env, input, jumps, positions, speaking, useNf2, view } from '../store';
 import { KayCharacter } from './KayCharacter';
 import { newAnim } from './anim';
 import { Overhead } from './Overhead';
@@ -118,6 +118,7 @@ export function LocalPlayer({ meRef, t }: { meRef: React.RefObject<THREE.Vector3
     const e = emoteAnim.get(me);
     a.emote = e ? e.id : -1;
     a.emoteStart = e ? e.start : -1e9;
+    a.speakingUntil = speaking.get(me) ?? 0;
 
     const g = group.current;
     if (g) {

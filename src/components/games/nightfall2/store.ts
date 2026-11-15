@@ -42,6 +42,7 @@ export const nf2 = {
     positions.clear();
     jumps.clear();
     emoteAnim.clear();
+    speaking.clear();
     subs.forEach((fn) => fn());
   },
   subscribe(fn: () => void) {
@@ -64,6 +65,13 @@ export const positions = new Map<string, Pose>();
 export const jumps = new Map<string, number>();
 /** emote id + performance.now() start, per player */
 export const emoteAnim = new Map<string, { id: number; start: number }>();
+/**
+ * performance.now() until which a player is making a sound. Text chat and the Crier set it
+ * today; a microphone level will feed the same map once voice chat is in.
+ */
+export const speaking = new Map<string, number>();
+/** Roughly how long a line takes to say, so the mouth stops when the talking would. */
+export const speakingMs = (text: string) => Math.min(6000, Math.max(1100, text.length * 60));
 
 /** Movement input shared by the joystick, the keyboard and the local player: x right, y forward (−1..1). */
 export const input = { x: 0, y: 0, keys: new Set<string>() };

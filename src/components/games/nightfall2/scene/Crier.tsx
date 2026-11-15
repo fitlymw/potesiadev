@@ -34,6 +34,7 @@ export function Crier({ t }: { t: (typeof TEXT)['id'] }) {
     g.visible = g.position.y > -2.5;
     // while reading: the bell arm is up (the "wave" pose), re-triggered so it never times out
     const a = anim.current;
+    a.speakingUntil = speaking ? performance.now() + 400 : 0; // kept alive while a line is on screen
     if (speaking) {
       a.emote = 0;
       if (performance.now() - a.emoteStart > 2000) a.emoteStart = performance.now();

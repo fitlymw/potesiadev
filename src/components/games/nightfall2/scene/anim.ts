@@ -5,8 +5,10 @@ export interface AnimState {
   jumpStart: number;
   emote: number;
   emoteStart: number;
+  /** performance.now() until which this character is making a sound, so the mouth moves. */
+  speakingUntil: number;
 }
-export const newAnim = (): AnimState => ({ moving: false, jumpStart: -1e9, emote: -1, emoteStart: -1e9 });
+export const newAnim = (): AnimState => ({ moving: false, jumpStart: -1e9, emote: -1, emoteStart: -1e9, speakingUntil: 0 });
 
 export function lerpAngle(a: number, b: number, k: number): number {
   let d = (b - a) % (Math.PI * 2);
