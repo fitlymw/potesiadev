@@ -100,7 +100,7 @@ function bind(r: Room) {
   const syncRoster = () => {
     const roster: Roster[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    r.state.players.forEach((p: any, id: string) => roster.push({ id, name: p.name, color: p.color, look: p.look, host: p.host, alive: p.alive, ready: p.ready }));
+    r.state.players.forEach((p: any, id: string) => roster.push({ id, name: p.name, color: p.color, look: p.look, host: p.host, alive: p.alive, ready: p.ready, seated: p.seated }));
     nf2.set({ roster });
   };
   const syncPhase = () => {
@@ -133,6 +133,7 @@ function bind(r: Room) {
     $(p).listen('name', syncRoster);
     $(p).listen('look', syncRoster);
     $(p).listen('ready', syncRoster);
+    $(p).listen('seated', syncRoster);
   });
   $(r.state).players.onRemove((_p: unknown, id: string) => {
     positions.delete(id);
@@ -148,8 +149,10 @@ function bind(r: Room) {
   $(r.state).listen('roundLive', () => nf2.set({ roundLive: r.state.roundLive, ...(r.state.roundLive ? {} : { myRole: null, setup: null }) }));
 
   r.onMessage<ChatEvent>('chat', (ev) => {
-    speaking.set(ev.from, performance.now() + speakingMs(ev.text)); // their mouth moves while they say it
-    nf2.set({ chat: [...nf2.get().chat.slice(-79), ev] });
+    // a speaker badge shows over their head for about as long as the line takes to say
+    const ms = speakingMs(ev.text);
+    speaking.set(ev.from, performance.now() + ms);
+    nf2.set({ chat: [...nf2.get().chat.slice(-79), ev], speakingUntil: { ...nf2.get().speakingUntil, [ev.from]: Date.now() + ms } });
   });
   r.onMessage<EmoteEvent>('emote', (ev) => {
     emoteAnim.set(ev.from, { id: ev.id, start: performance.now() });

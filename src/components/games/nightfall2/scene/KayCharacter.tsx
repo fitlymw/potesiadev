@@ -117,15 +117,6 @@ function build(g: Gltfs, look: Look, alive: boolean) {
       head.add(beret);
     }
   }
-  // a mouth that opens while this character is making a sound (hidden when silent)
-  let mouth: THREE.Mesh | null = null;
-  if (head) {
-    // just below the nose on the KayKit head: the eye line sits at about y 0.36 in head space
-    mouth = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.03), new THREE.MeshStandardMaterial({ color: '#5a1f1f', roughness: 0.9 }));
-    mouth.position.set(0, 0.19, 0.5);
-    mouth.visible = false;
-    head.add(mouth);
-  }
   // lantern in the left hand (glows at night)
   const slot = bones.get('handslot.l') ?? bones.get('hand.l');
   const lamp = new THREE.MeshStandardMaterial({ color: '#ffd27a', emissive: '#ffb347', emissiveIntensity: 0.3 });
@@ -136,7 +127,7 @@ function build(g: Gltfs, look: Look, alive: boolean) {
   }
   const mats: THREE.MeshStandardMaterial[] = [];
   rig.traverse((o) => { const m = (o as THREE.Mesh).material; if (m && (m as THREE.MeshStandardMaterial).isMeshStandardMaterial) mats.push(m as THREE.MeshStandardMaterial); });
-  return { rig, lamp, mats, mouth };
+  return { rig, lamp, mats };
 }
 
 /**
@@ -193,12 +184,13 @@ export function KayCharacter({ look, animRef, alive = true, scale = 1 }: { look:
     const es = now - a.emoteStart;
     const emoting = a.emote >= 0 && es >= 0 && es <= EMOTE_DURATION_MS;
 
-    if (jumping) play(jp < 0.2 ? 'Jump_Start' : jp > 0.8 ? 'Jump_Land' : 'Jump_Idle');
+    if (jumping && !a.seated) play(jp < 0.2 ? 'Jump_Start' : jp > 0.8 ? 'Jump_Land' : 'Jump_Idle');
     else if (emoting) {
       // a fresh emote restarts its clip even if it is the same one
       if (emoteKey.current !== a.emoteStart) { emoteKey.current = a.emoteStart; current.current = ''; }
       play(EMOTE_CLIPS[a.emote] ?? 'Cheer', a.emote !== 6);
-    } else if (a.moving) play('Running_A');
+    } else if (a.seated) play('Sit_Floor_Idle');
+    else if (a.moving) play('Running_A');
     else play('Idle');
 
     mixer.update(dt);
@@ -207,17 +199,6 @@ export function KayCharacter({ look, animRef, alive = true, scale = 1 }: { look:
     const lm = lamp.current;
     if (lm) lm.emissiveIntensity = 0.3 + env.night * 2.2;
 
-    // the mouth works while this character is making a sound, at a natural speaking rhythm
-    const mouth = built.mouth;
-    if (mouth) {
-      const talking = now < a.speakingUntil;
-      mouth.visible = talking;
-      if (talking) {
-        const t = now / 1000;
-        const open = 0.35 + 0.65 * Math.abs(Math.sin(t * 11) * Math.sin(t * 4.3));
-        mouth.scale.set(1, open, 1);
-      }
-    }
   });
 
   const s = SCALE * scale;

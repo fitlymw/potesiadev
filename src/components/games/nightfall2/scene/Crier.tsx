@@ -34,7 +34,6 @@ export function Crier({ t }: { t: (typeof TEXT)['id'] }) {
     g.visible = g.position.y > -2.5;
     // while reading: the bell arm is up (the "wave" pose), re-triggered so it never times out
     const a = anim.current;
-    a.speakingUntil = speaking ? performance.now() + 400 : 0; // kept alive while a line is on screen
     if (speaking) {
       a.emote = 0;
       if (performance.now() - a.emoteStart > 2000) a.emoteStart = performance.now();
@@ -63,7 +62,16 @@ export function Crier({ t }: { t: (typeof TEXT)['id'] }) {
       </group>
       {line && (
         <Html position={[0, 2.75, 0]} center distanceFactor={9} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="max-w-[240px] rounded-xl border border-amber-300/60 bg-[#1a1408]/95 px-3 py-2 text-[13px] leading-snug text-amber-100 shadow-lg">{line}</div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="nf2-talk flex h-8 w-8 items-center justify-center rounded-full border-2 border-amber-300 bg-amber-500/90 shadow-lg" aria-label="speaking">
+              <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white">
+                <path d="M11 5 6 9H3v6h3l5 4V5z" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <path d="M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="max-w-[240px] rounded-xl border border-amber-300/60 bg-[#1a1408]/95 px-3 py-2 text-[13px] leading-snug text-amber-100 shadow-lg">{line}</div>
+          </div>
         </Html>
       )}
     </group>

@@ -48,9 +48,24 @@ export const WORLD_HALF = 42; // playable square is [-42, 42]
 export const PLAZA_RADIUS = 9;
 export const RIVER = { z0: 10.6, z1: 13.6 };
 export const BRIDGES: Bridge[] = [{ x: 0, width: 4.6 }, { x: -15, width: 3.6 }, { x: 15, width: 3.6 }];
-export const WELL: AABB = { minX: -1.2, maxX: 1.2, minZ: -1.2, maxZ: 1.2 };
-/** Where the Town Crier stands at night: on the plaza, by the well, facing the bridge. */
-export const CRIER_SPOT = { x: 0, z: 3.2, rot: Math.PI };
+/** The well sits off to one side so the middle of the plaza stays clear for the night circle. */
+export const WELL_AT = { x: -5.5, z: -5.5 };
+export const WELL: AABB = { minX: WELL_AT.x - 1.2, maxX: WELL_AT.x + 1.2, minZ: WELL_AT.z - 1.2, maxZ: WELL_AT.z + 1.2 };
+/** At night the Crier stands in the very middle of the plaza, with the town seated around it. */
+export const CRIER_SPOT = { x: 0, z: 0, rot: Math.PI };
+
+/**
+ * Where each player sits when night falls: a ring around the Crier, everyone facing inwards,
+ * wide enough that a full table of 15 still has elbow room.
+ */
+export function nightSeat(index: number, total: number): { x: number; z: number; rot: number } {
+  const n = Math.max(1, total);
+  const radius = Math.max(3.6, n * 0.42);
+  const a = (index / n) * Math.PI * 2;
+  const x = Math.cos(a) * radius;
+  const z = Math.sin(a) * radius;
+  return { x, z, rot: Math.atan2(-x, -z) }; // look towards the middle
+}
 
 /** A step this high is walked up; while jumping the limit is JUMP_STEP. */
 export const STEP_MAX = 0.55;

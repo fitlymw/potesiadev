@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import {
-  BRIDGES, FURNITURE_SCALE, HOUSES, LANTERNS, PLATFORMS, PLAZA_RADIUS, RAMPS, RIVER, TILE, TREES, TREE_SCALE, WORLD_HALF,
+  BRIDGES, FURNITURE_SCALE, HOUSES, LANTERNS, PLATFORMS, PLAZA_RADIUS, RAMPS, RIVER, TILE, TREES, TREE_SCALE, WELL_AT, WORLD_HALF,
   houseBounds, type House, type Side,
 } from '../../../../../shared/nightfall2/town';
 import { env, view } from '../store';
@@ -200,21 +200,23 @@ export function Town() {
         </group>
       ))}
 
-      {/* the well in the middle of the plaza */}
-      <mesh position={[0, 0.5, 0]}>
-        <cylinderGeometry args={[1.2, 1.3, 1, 12]} />
-        <meshStandardMaterial color="#6f6a66" />
-      </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * 1.0, 1.6, 0]}>
-          <boxGeometry args={[0.12, 1.4, 0.12]} />
-          <meshStandardMaterial color="#5a3d2b" />
+      {/* the well, off to one side so the middle stays clear for the night circle */}
+      <group position={[WELL_AT.x, 0, WELL_AT.z]}>
+        <mesh position={[0, 0.5, 0]}>
+          <cylinderGeometry args={[1.2, 1.3, 1, 12]} />
+          <meshStandardMaterial color="#6f6a66" />
         </mesh>
-      ))}
-      <mesh position={[0, 2.5, 0]}>
-        <coneGeometry args={[1.7, 0.9, 6]} />
-        <meshStandardMaterial color="#7a4a3a" />
-      </mesh>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * 1.0, 1.6, 0]}>
+            <boxGeometry args={[0.12, 1.4, 0.12]} />
+            <meshStandardMaterial color="#5a3d2b" />
+          </mesh>
+        ))}
+        <mesh position={[0, 2.5, 0]}>
+          <coneGeometry args={[1.7, 0.9, 6]} />
+          <meshStandardMaterial color="#7a4a3a" />
+        </mesh>
+      </group>
 
       {/* houses: Kenney Fantasy Town walls on a 2.5 m grid, plank floors, roofs, chimneys, furniture */}
       {Object.entries(ground).map(([name, items]) => <Pieces key={name} url={town(name)} items={items} />)}

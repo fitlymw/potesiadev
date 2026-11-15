@@ -4,11 +4,12 @@ import { useNow } from '../useNow';
 
 const BUBBLE_MS = 5000;
 
-/** What floats above a player's head right now: their last chat line and/or their current emote. */
-export function useOverhead(id: string): { text?: string; emote?: number } {
+/** What floats above a player's head right now: their last line, their emote, and whether they are talking. */
+export function useOverhead(id: string): { text?: string; emote?: number; speaking: boolean } {
   const now = useNow();
   const chat = useNf2((s) => s.chat);
   const emotes = useNf2((s) => s.emotes);
+  const speakingUntil = useNf2((s) => s.speakingUntil);
   let text: string | undefined;
   for (let i = chat.length - 1; i >= 0; i--) {
     if (chat[i].from === id) {
@@ -18,5 +19,5 @@ export function useOverhead(id: string): { text?: string; emote?: number } {
   }
   const e = emotes[id];
   const emote = e && now - e.at < EMOTE_DURATION_MS ? e.id : undefined;
-  return { text, emote };
+  return { text, emote, speaking: (speakingUntil[id] ?? 0) > now };
 }

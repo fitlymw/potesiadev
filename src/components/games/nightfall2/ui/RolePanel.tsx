@@ -30,7 +30,7 @@ export function RoleCard({ t, lang }: { t: (typeof TEXT)['id']; lang: Lang }) {
   const style = TEAM_STYLE[info.team];
   const evil = info.team === 'shadow' || info.team === 'nightbringer';
   return (
-    <div data-ui className={`absolute left-3 top-16 w-[min(80vw,280px)] rounded-2xl border ${style.ring} ${style.bg} backdrop-blur-md`}>
+    <div data-ui className={`absolute left-3 top-16 z-40 w-[min(80vw,280px)] rounded-2xl border ${style.ring} ${style.bg} backdrop-blur-md`}>
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2.5 p-2.5 text-left" aria-expanded={open}>
         <RoleIcon role={role} size={36} />
         <span className="min-w-0 flex-1">

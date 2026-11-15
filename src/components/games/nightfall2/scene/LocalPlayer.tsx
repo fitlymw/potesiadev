@@ -6,7 +6,7 @@ import { colliders, houseAt, spawnPoint, wallColliders } from '../../../../../sh
 import { rayDistance, step } from '../../../../../shared/nightfall2/physics';
 import { decodeLook } from '../../../../../shared/nightfall2/look';
 import { jump, sendEmote, sendInput } from '../net';
-import { camera as cam, emoteAnim, env, input, jumps, positions, speaking, useNf2, view } from '../store';
+import { camera as cam, emoteAnim, env, input, jumps, positions, useNf2, view } from '../store';
 import { KayCharacter } from './KayCharacter';
 import { newAnim } from './anim';
 import { Overhead } from './Overhead';
@@ -77,9 +77,10 @@ export function LocalPlayer({ meRef, t }: { meRef: React.RefObject<THREE.Vector3
     const p = pos.current;
 
     // input → world direction relative to the camera yaw
+    const seated = mine?.seated ?? false;
     const k = input.keys;
-    let ix = input.x + (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    let iy = input.y + (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    let ix = seated ? 0 : input.x + (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    let iy = seated ? 0 : input.y + (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     const mag = Math.hypot(ix, iy);
     if (mag > 1) { ix /= mag; iy /= mag; }
     const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
@@ -95,10 +96,11 @@ export function LocalPlayer({ meRef, t }: { meRef: React.RefObject<THREE.Vector3
       p.z = next.z;
       rot.current = Math.atan2(dir.x, dir.z);
     }
-    // reconcile with the authoritative position
+    // reconcile with the authoritative position (seated players are placed, so snap to the seat)
     if (server) {
       const err = Math.hypot(server.x - p.x, server.z - p.z);
-      const pull = err > 1.2 ? 0.25 : moving ? 0.03 : 0.1;
+      const pull = seated ? 0.3 : err > 1.2 ? 0.25 : moving ? 0.03 : 0.1;
+      if (seated) rot.current = server.rot;
       p.x += (server.x - p.x) * pull;
       p.z += (server.z - p.z) * pull;
       p.y += (server.y - p.y) * 0.2;
@@ -114,11 +116,11 @@ export function LocalPlayer({ meRef, t }: { meRef: React.RefObject<THREE.Vector3
 
     const a = anim.current;
     a.moving = moving;
+    a.seated = seated;
     a.jumpStart = jumps.get(me) ?? -1e9;
     const e = emoteAnim.get(me);
     a.emote = e ? e.id : -1;
     a.emoteStart = e ? e.start : -1e9;
-    a.speakingUntil = speaking.get(me) ?? 0;
 
     const g = group.current;
     if (g) {
@@ -148,7 +150,7 @@ export function LocalPlayer({ meRef, t }: { meRef: React.RefObject<THREE.Vector3
     <group ref={group}>
       <KayCharacter look={look} animRef={anim} alive={mine.alive} />
       <pointLight ref={light} position={[-0.4, 1.0, 0.3]} color="#ffb860" intensity={0} distance={8} decay={2} />
-      <Overhead text={over.text} emote={over.emote} emoteLabel={over.emote === undefined ? undefined : t.emoteNames[over.emote]} />
+      <Overhead text={over.text} emote={over.emote} speaking={over.speaking} emoteLabel={over.emote === undefined ? undefined : t.emoteNames[over.emote]} />
     </group>
   );
 }

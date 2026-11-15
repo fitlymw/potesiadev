@@ -20,7 +20,7 @@ import {
   type Lang,
   type Phase,
 } from '../../shared/nightfall2/constants.ts';
-import { colliders, houseAt, spawnPoint } from '../../shared/nightfall2/town.ts';
+import { colliders, houseAt, nightSeat, spawnPoint } from '../../shared/nightfall2/town.ts';
 import { distance, step } from '../../shared/nightfall2/physics.ts';
 import { decodeLook, encodeLook } from '../../shared/nightfall2/look.ts';
 import type { ChatEvent, ChatMsg, EmoteEvent, EmoteMsg, InputMsg, JoinOptions, JumpEvent, NewsEvent, RoleEvent, SetupEvent, SystemEvent } from '../../shared/nightfall2/messages.ts';
@@ -44,8 +44,10 @@ export class Player extends Schema {
   declare alive: boolean;
   /** Pressed "end the phase". Public on purpose: everyone sees who is ready. */
   declare ready: boolean;
+  /** Sitting in the night circle: the town gathers and nobody wanders off. */
+  declare seated: boolean;
 }
-defineTypes(Player, { sessionId: 'string', name: 'string', color: 'string', look: 'string', x: 'number', y: 'number', z: 'number', rot: 'number', moving: 'boolean', host: 'boolean', alive: 'boolean', ready: 'boolean' });
+defineTypes(Player, { sessionId: 'string', name: 'string', color: 'string', look: 'string', x: 'number', y: 'number', z: 'number', rot: 'number', moving: 'boolean', host: 'boolean', alive: 'boolean', ready: 'boolean', seated: 'boolean' });
 
 export class TownState extends Schema {
   declare code: string;
@@ -134,6 +136,7 @@ export class ElfTownRoom extends Room<TownState> {
     p.moving = false;
     p.alive = true;
     p.ready = false;
+    p.seated = false;
     p.host = this.state.players.size === 0;
     this.state.players.set(client.sessionId, p);
     this.broadcast('system', { key: 'joined', name: p.name } satisfies SystemEvent, { except: client });
@@ -199,11 +202,33 @@ export class ElfTownRoom extends Room<TownState> {
     this.state.players.forEach((p) => { p.ready = false; });
   }
 
+  /**
+   * Night gathers the town: everyone is placed in a ring around the Crier, seated and facing
+   * inwards, and stays put until dawn. Dawn simply lets them stand up where they are.
+   */
+  private seatForNight(on: boolean) {
+    if (!on) {
+      this.state.players.forEach((p) => { p.seated = false; });
+      return;
+    }
+    const seated = Array.from(this.state.players.values());
+    seated.forEach((p, i) => {
+      const seat = nightSeat(i, seated.length);
+      p.x = seat.x;
+      p.z = seat.z;
+      p.y = 0;
+      p.rot = seat.rot;
+      p.moving = false;
+      p.seated = true;
+      this.inputs.delete(p.sessionId);
+    });
+  }
+
   private tick(dtMs: number) {
     const dt = dtMs / 1000;
     const now = Date.now();
     this.state.players.forEach((p, id) => {
-      const inp = this.inputs.get(id);
+      const inp = p.seated ? undefined : this.inputs.get(id);
       const moving = !!inp && Math.hypot(inp.x, inp.z) > 0.05;
       if (moving && inp) {
         const jumping = now - (this.lastJumpAt.get(id) ?? -1e9) < JUMP_DURATION_MS;
@@ -221,6 +246,7 @@ export class ElfTownRoom extends Room<TownState> {
 
   private beginPhase(phase: Phase, day = this.state.day) {
     this.clearReady();
+    this.seatForNight(phase === 'night');
     this.state.phase = phase;
     this.state.day = day;
     this.state.phaseEndsAt = Date.now() + (phase === 'day' ? DAY_SECONDS : NIGHT_SECONDS) * 1000;

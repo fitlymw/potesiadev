@@ -4,7 +4,7 @@ import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { NAME_RADIUS_NIGHT } from '../../../../../shared/nightfall2/constants';
 import { decodeLook } from '../../../../../shared/nightfall2/look';
-import { emoteAnim, env, jumps, positions, speaking, useNf2, type Roster } from '../store';
+import { emoteAnim, env, jumps, positions, useNf2, type Roster } from '../store';
 import { KayCharacter } from './KayCharacter';
 import { lerpAngle, newAnim } from './anim';
 import { Overhead } from './Overhead';
@@ -39,11 +39,11 @@ function RemotePlayer({ p, meRef, t }: { p: Roster; meRef: React.RefObject<THREE
     g.rotation.y = lerpAngle(g.rotation.y, pose.rot, k);
     const a = anim.current;
     a.moving = pose.moving;
+    a.seated = p.seated;
     a.jumpStart = jumps.get(p.id) ?? -1e9;
     const e = emoteAnim.get(p.id);
     a.emote = e ? e.id : -1;
     a.emoteStart = e ? e.start : -1e9;
-    a.speakingUntil = speaking.get(p.id) ?? 0;
     const tg = tag.current;
     if (tg && meRef.current) {
       const d = Math.hypot(meRef.current.x - g.position.x, meRef.current.z - g.position.z);
@@ -60,7 +60,7 @@ function RemotePlayer({ p, meRef, t }: { p: Roster; meRef: React.RefObject<THREE
           </Text>
         </Billboard>
       </group>
-      <Overhead text={over.text} emote={over.emote} emoteLabel={over.emote === undefined ? undefined : t.emoteNames[over.emote]} />
+      <Overhead text={over.text} emote={over.emote} speaking={over.speaking} emoteLabel={over.emote === undefined ? undefined : t.emoteNames[over.emote]} />
     </group>
   );
 }
