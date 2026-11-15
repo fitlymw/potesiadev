@@ -21,6 +21,7 @@ import { Chat } from './ui/Chat';
 import { Joystick } from './ui/Joystick';
 import { EmoteWheel } from './ui/EmoteWheel';
 import { CharacterEditor } from './ui/CharacterEditor';
+import { RoleCard } from './ui/RolePanel';
 
 const PIXEL = { fontFamily: '"Press Start 2P", cursive' };
 
@@ -40,7 +41,7 @@ export function Nightfall2() {
     };
   }, []);
 
-  if (status === 'lobby' || status === 'playing') return <GameView t={t} touch={touch} />;
+  if (status === 'lobby' || status === 'playing') return <GameView t={t} lang={lang} touch={touch} />;
   return <Entry t={t} lang={lang} setLang={setLang} />;
 }
 
@@ -125,7 +126,7 @@ function Entry({ t, lang, setLang }: { t: (typeof TEXT)['id']; lang: Lang; setLa
 }
 
 // ==================== GAME VIEW: the 3D town with the UI on top ====================
-function GameView({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
+function GameView({ t, lang, touch }: { t: (typeof TEXT)['id']; lang: Lang; touch: boolean }) {
   const meRef = useRef(new THREE.Vector3());
   const drag = useRef<{ id: number; x: number } | null>(null);
   const phase = useNf2((s) => s.phase);
@@ -157,8 +158,9 @@ function GameView({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
           <Crier t={t} />
         </Suspense>
       </Canvas>
-      <Hud t={t} touch={touch} />
+      <Hud t={t} lang={lang} touch={touch} />
       {phase === 'lobby' && <LobbyBar t={t} />}
+      <RoleCard t={t} lang={lang} />
       <Chat t={t} touch={touch} />
       {/* action column: emote above jump, on the right (the chat button sits at the bottom on phones) */}
       <EmoteWheel t={t} corner={touch} className={touch ? 'bottom-44 right-5' : 'bottom-4 right-[22rem]'} />

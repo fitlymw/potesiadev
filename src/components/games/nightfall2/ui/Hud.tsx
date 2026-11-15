@@ -6,11 +6,12 @@ import { hostAction, leaveLobby } from '../net';
 import { getVoiceStatus, isCrierMuted, setCrierMuted, subscribeCrierMuted, subscribeVoiceStatus } from '../speech';
 import { useNf2 } from '../store';
 import { useNow } from '../useNow';
-import type { TEXT } from '../texts';
+import { RoleBookButton } from './RolePanel';
+import type { Lang, TEXT } from '../texts';
 
 const PIXEL = { fontFamily: '"Press Start 2P", cursive' };
 
-export function Hud({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
+export function Hud({ t, lang, touch }: { t: (typeof TEXT)['id']; lang: Lang; touch: boolean }) {
   const phase = useNf2((s) => s.phase);
   const endsAt = useNf2((s) => s.phaseEndsAt);
   const day = useNf2((s) => s.day);
@@ -18,10 +19,12 @@ export function Hud({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
   const roster = useNf2((s) => s.roster);
   const me = useNf2((s) => s.me);
   const notices = useNf2((s) => s.notices);
-  const isHost = roster.find((p) => p.id === me)?.host ?? false;
   const now = useNow();
   const crierMuted = useSyncExternalStore(subscribeCrierMuted, isCrierMuted, isCrierMuted);
   const voice = useSyncExternalStore(subscribeVoiceStatus, getVoiceStatus, getVoiceStatus);
+  const living = roster.filter((p) => p.alive);
+  const readyCount = living.filter((p) => p.ready).length;
+  const iAmReady = roster.find((p) => p.id === me)?.ready ?? false;
   const crier = useNf2((s) => s.crier);
   const crierLine = crier && crier.index >= 0 && crier.index < crier.lines.length ? crier.lines[crier.index] : null;
   // big banner for a few seconds after the phase flips (derived from the server's notice)
@@ -49,8 +52,18 @@ export function Hud({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
           <button onClick={() => setCrierMuted(!crierMuted)} className="rounded-xl border border-white/15 bg-black/40 p-2 backdrop-blur-md" aria-label={crierMuted ? t.crierVoiceOff : t.crierVoiceOn} aria-pressed={crierMuted} title={crierMuted ? t.crierVoiceOff : t.crierVoiceOn}>
             {crierMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
-          {isHost && (
-            <button onClick={() => hostAction('skip')} className="rounded-xl border border-white/15 bg-black/40 p-2 backdrop-blur-md" aria-label={t.skip} title={t.skip}><SkipForward className="h-4 w-4" /></button>
+          <RoleBookButton t={t} lang={lang} />
+          {phase !== 'lobby' && (
+            <button
+              onClick={() => hostAction('skip')}
+              className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs backdrop-blur-md ${iAmReady ? 'border-emerald-300 bg-emerald-500/25 text-emerald-100' : 'border-white/15 bg-black/40 text-white'}`}
+              aria-label={t.skip}
+              aria-pressed={iAmReady}
+              title={`${t.skip} — ${t.readyHint}`}
+            >
+              <SkipForward className="h-4 w-4" />
+              <span className="tabular-nums">{readyCount}/{living.length}</span>
+            </button>
           )}
           <button onClick={() => { if (confirm(`${t.leave}?`)) leaveLobby(); }} className="rounded-xl border border-white/15 bg-black/40 p-2 backdrop-blur-md" aria-label={t.leave} title={t.leave}><LogOut className="h-4 w-4" /></button>
         </div>
@@ -67,6 +80,12 @@ export function Hud({ t, touch }: { t: (typeof TEXT)['id']; touch: boolean }) {
         )}
         {night && voice.missing && !crierMuted && (
           <p className="w-full rounded-xl border border-amber-300/40 bg-amber-950/70 px-3 py-2 text-center text-[11px] text-amber-100 backdrop-blur-md">{t.voiceMissing}</p>
+        )}
+        {/* who has already pressed "end the phase" */}
+        {phase !== 'lobby' && readyCount > 0 && (
+          <p className="w-full rounded-xl border border-emerald-300/30 bg-emerald-950/60 px-3 py-1.5 text-center text-[11px] text-emerald-100 backdrop-blur-md">
+            {t.readyCount(readyCount, living.length)} · {living.filter((p) => p.ready).map((p) => p.name).join(', ')}
+          </p>
         )}
         <AnimatePresence>
           {notices.slice(-3).map((n) => (

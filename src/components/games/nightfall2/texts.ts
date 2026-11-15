@@ -56,6 +56,14 @@ export const TEXT = {
     emoteNames: ['Lambai', 'Tertawa', 'Menangis', 'Marah', 'Berpikir', 'Menunjuk', 'Menari', 'Hati'],
     jump: 'Loncat',
     crier: 'Penyeru Kota',
+    yourRole: 'Peranmu',
+    roleBook: 'Buku peran',
+    close: 'Tutup',
+    mix: (n: number, l: number, c: number, sh: number, b: number) => `${n} pemain · ${l} Luminary · ${c} Cursed · ${sh} Shadow · ${b} Nightbringer`,
+    ready: 'Siap lanjut',
+    readyCount: (n: number, total: number) => `Siap ${n}/${total}`,
+    readyHint: 'Fase berganti kalau semua pemain menekan ini',
+    needPlayers: (n: number) => `Butuh 5-10 pemain untuk memulai ronde (sekarang ${n})`,
     crierVoiceOn: 'Suara Penyeru: nyala',
     crierVoiceOff: 'Suara Penyeru: mati',
     voiceMissing: 'Perangkat ini belum punya suara Bahasa Indonesia, jadi Penyeru hanya menulis. Pasang suara Indonesia di pengaturan Text-to-speech HP/PC.',
@@ -73,6 +81,7 @@ export const TEXT = {
         case 'night': return 'Malam turun…';
         case 'lobby': return 'Kembali ke lobby';
         case 'hush': return 'Ssst. Tidak ada yang boleh bicara sampai fajar.';
+        case 'needPlayers': return `Butuh 5-10 pemain untuk memulai ronde (sekarang ${ev.day}).`;
       }
     },
   },
@@ -129,6 +138,14 @@ export const TEXT = {
     emoteNames: ['Wave', 'Laugh', 'Cry', 'Angry', 'Think', 'Point', 'Dance', 'Heart'],
     jump: 'Jump',
     crier: 'Town Crier',
+    yourRole: 'Your role',
+    roleBook: 'Role book',
+    close: 'Close',
+    mix: (n: number, l: number, c: number, sh: number, b: number) => `${n} players · ${l} Luminary · ${c} Cursed · ${sh} Shadow · ${b} Nightbringer`,
+    ready: 'Ready',
+    readyCount: (n: number, total: number) => `Ready ${n}/${total}`,
+    readyHint: 'The phase turns over once every player presses this',
+    needPlayers: (n: number) => `A round needs 5-10 players (there are ${n})`,
     crierVoiceOn: 'Crier voice: on',
     crierVoiceOff: 'Crier voice: off',
     voiceMissing: 'This device has no English voice installed, so the Crier only writes. Add one in your text-to-speech settings.',
@@ -146,6 +163,7 @@ export const TEXT = {
         case 'night': return 'Night falls…';
         case 'lobby': return 'Back to the lobby';
         case 'hush': return 'Hush. Nobody speaks until dawn.';
+        case 'needPlayers': return `A round needs 5-10 players (there are ${ev.day}).`;
       }
     },
   },

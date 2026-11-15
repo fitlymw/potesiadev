@@ -23,8 +23,11 @@ import {
 import { colliders, houseAt, spawnPoint } from '../../shared/nightfall2/town.ts';
 import { distance, step } from '../../shared/nightfall2/physics.ts';
 import { decodeLook, encodeLook } from '../../shared/nightfall2/look.ts';
-import type { ChatEvent, ChatMsg, EmoteEvent, EmoteMsg, InputMsg, JoinOptions, JumpEvent, NewsEvent, SystemEvent } from '../../shared/nightfall2/messages.ts';
+import type { ChatEvent, ChatMsg, EmoteEvent, EmoteMsg, InputMsg, JoinOptions, JumpEvent, NewsEvent, RoleEvent, SetupEvent, SystemEvent } from '../../shared/nightfall2/messages.ts';
 import { composeNews, emptyStats, type DayStats } from './news.ts';
+// Nightfall Deception's own dealer and role book, so the mix is exactly the one the first game uses
+import { NF_MAX_PLAYERS, NF_MIN_PLAYERS, dealRoles, setupFor } from '@/lib/party/nightfall';
+import type { RoleId } from '@/data/nightfallRoles';
 
 // `declare` keeps the fields off the instance so the Schema accessors (change tracking) stay in charge.
 export class Player extends Schema {
@@ -39,8 +42,10 @@ export class Player extends Schema {
   declare moving: boolean;
   declare host: boolean;
   declare alive: boolean;
+  /** Pressed "end the phase". Public on purpose: everyone sees who is ready. */
+  declare ready: boolean;
 }
-defineTypes(Player, { sessionId: 'string', name: 'string', color: 'string', look: 'string', x: 'number', y: 'number', z: 'number', rot: 'number', moving: 'boolean', host: 'boolean', alive: 'boolean' });
+defineTypes(Player, { sessionId: 'string', name: 'string', color: 'string', look: 'string', x: 'number', y: 'number', z: 'number', rot: 'number', moving: 'boolean', host: 'boolean', alive: 'boolean', ready: 'boolean' });
 
 export class TownState extends Schema {
   declare code: string;
@@ -48,9 +53,11 @@ export class TownState extends Schema {
   declare phase: Phase;
   declare phaseEndsAt: number;
   declare day: number;
+  /** A round with dealt roles is in progress (the lobby is just the town). */
+  declare roundLive: boolean;
   declare players: MapSchema<Player>;
 }
-defineTypes(TownState, { code: 'string', lang: 'string', phase: 'string', phaseEndsAt: 'number', day: 'number', players: { map: Player } });
+defineTypes(TownState, { code: 'string', lang: 'string', phase: 'string', phaseEndsAt: 'number', day: 'number', roundLive: 'boolean', players: { map: Player } });
 
 const BOXES = colliders();
 
@@ -78,6 +85,8 @@ export class ElfTownRoom extends Room<TownState> {
   private chatSeq = 0;
   private joinCount = 0;
   private stats: DayStats = emptyStats();
+  /** sessionId → dealt role. Server-side only; never part of the synchronised state. */
+  private roles = new Map<string, RoleId>();
   private seed = Math.floor(Math.random() * 1000);
 
   async onCreate(options: JoinOptions) {
@@ -88,6 +97,7 @@ export class ElfTownRoom extends Room<TownState> {
     state.phase = 'lobby';
     state.phaseEndsAt = 0;
     state.day = 0;
+    state.roundLive = false;
     state.players = new MapSchema<Player>();
     this.setState(state);
     await this.setMetadata({ code: state.code, lang: state.lang });
@@ -101,8 +111,8 @@ export class ElfTownRoom extends Room<TownState> {
     this.onMessage<ChatMsg>('chat', (client, msg) => this.chat(client, msg));
     this.onMessage<EmoteMsg>('emote', (client, msg) => this.emote(client, msg));
     this.onMessage('jump', (client) => this.jump(client));
-    this.onMessage('start', (client) => this.hostOnly(client, () => this.beginPhase('day', 1)));
-    this.onMessage('skip', (client) => this.hostOnly(client, () => this.nextPhase()));
+    this.onMessage('start', (client) => this.hostOnly(client, () => this.startRound()));
+    this.onMessage('skip', (client) => this.voteSkip(client));
     this.onMessage('lobby', (client) => this.hostOnly(client, () => this.toLobby()));
 
     this.setSimulationInterval((dt) => this.tick(dt), TICK_MS);
@@ -123,6 +133,7 @@ export class ElfTownRoom extends Room<TownState> {
     p.rot = sp.rot;
     p.moving = false;
     p.alive = true;
+    p.ready = false;
     p.host = this.state.players.size === 0;
     this.state.players.set(client.sessionId, p);
     this.broadcast('system', { key: 'joined', name: p.name } satisfies SystemEvent, { except: client });
@@ -134,6 +145,7 @@ export class ElfTownRoom extends Room<TownState> {
     const wasHost = p.host;
     this.state.players.delete(client.sessionId);
     this.inputs.delete(client.sessionId);
+    this.roles.delete(client.sessionId);
     this.broadcast('system', { key: 'left', name: p.name } satisfies SystemEvent);
     if (wasHost) {
       const next = this.state.players.values().next().value as Player | undefined;
@@ -146,6 +158,42 @@ export class ElfTownRoom extends Room<TownState> {
 
   private hostOnly(client: Client, fn: () => void) {
     if (this.state.players.get(client.sessionId)?.host) fn();
+  }
+
+  /**
+   * Deal Nightfall Deception's roles and begin day 1. Each player is told their own role in a
+   * private message — a role never enters the shared room state, so it cannot be read off the wire.
+   */
+  private startRound() {
+    const ids = Array.from(this.state.players.keys());
+    if (ids.length < NF_MIN_PLAYERS || ids.length > NF_MAX_PLAYERS) {
+      this.broadcast('system', { key: 'needPlayers', day: ids.length } satisfies SystemEvent);
+      return;
+    }
+    const { roles } = dealRoles(ids.length, Math.random, 'standard');
+    this.roles.clear();
+    ids.forEach((id, i) => {
+      const role = roles[i];
+      this.roles.set(id, role);
+      this.clients.find((c) => c.sessionId === id)?.send('role', { role } satisfies RoleEvent);
+    });
+    const [luminaries, cursed, shadows, bosses] = setupFor(ids.length, 'standard');
+    this.broadcast('setup', { players: ids.length, luminaries, cursed, shadows, bosses } satisfies SetupEvent);
+    this.state.roundLive = true;
+    this.beginPhase('day', 1);
+  }
+
+  /** Ending a phase early takes everyone: each player presses, and the room sees the tally. */
+  private voteSkip(client: Client) {
+    const p = this.state.players.get(client.sessionId);
+    if (!p || this.state.phase === 'lobby') return;
+    p.ready = !p.ready;
+    const living = Array.from(this.state.players.values()).filter((q) => q.alive);
+    if (living.length > 0 && living.every((q) => q.ready)) this.nextPhase();
+  }
+
+  private clearReady() {
+    this.state.players.forEach((p) => { p.ready = false; });
   }
 
   private tick(dtMs: number) {
@@ -169,6 +217,7 @@ export class ElfTownRoom extends Room<TownState> {
   }
 
   private beginPhase(phase: Phase, day = this.state.day) {
+    this.clearReady();
     this.state.phase = phase;
     this.state.day = day;
     this.state.phaseEndsAt = Date.now() + (phase === 'day' ? DAY_SECONDS : NIGHT_SECONDS) * 1000;
@@ -190,6 +239,9 @@ export class ElfTownRoom extends Room<TownState> {
   }
 
   private toLobby() {
+    this.clearReady();
+    this.roles.clear();
+    this.state.roundLive = false;
     this.state.phase = 'lobby';
     this.state.phaseEndsAt = 0;
     this.state.day = 0;

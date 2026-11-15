@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import type { Lang, Phase } from '../../../../shared/nightfall2/constants';
-import type { ChatEvent, SystemEvent } from '../../../../shared/nightfall2/messages';
+import type { ChatEvent, SetupEvent, SystemEvent } from '../../../../shared/nightfall2/messages';
 
 /** Slow-changing data React renders from. */
-export interface Roster { id: string; name: string; color: string; look: string; host: boolean; alive: boolean }
+export interface Roster { id: string; name: string; color: string; look: string; host: boolean; alive: boolean; ready: boolean }
 export interface Notice { id: number; key: SystemEvent['key']; text: string; at: number }
 export interface Crier { day: number; lang: Lang; lines: string[]; index: number }
 export interface Nf2State {
@@ -21,9 +21,13 @@ export interface Nf2State {
   /** latest emote per player (for the overhead emoji) */
   emotes: Record<string, { id: number; at: number }>;
   crier: Crier | null;
+  /** Your own dealt role (never anyone else's), and how the round was dealt. */
+  myRole: string | null;
+  setup: SetupEvent | null;
+  roundLive: boolean;
 }
 
-const initial: Nf2State = { status: 'idle', error: '', code: '', lang: 'id', phase: 'lobby', phaseEndsAt: 0, day: 0, me: '', roster: [], chat: [], notices: [], emotes: {}, crier: null };
+const initial: Nf2State = { status: 'idle', error: '', code: '', lang: 'id', phase: 'lobby', phaseEndsAt: 0, day: 0, me: '', roster: [], chat: [], notices: [], emotes: {}, crier: null, myRole: null, setup: null, roundLive: false };
 let state: Nf2State = initial;
 const subs = new Set<() => void>();
 

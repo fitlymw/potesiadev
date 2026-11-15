@@ -1,6 +1,6 @@
 import { Client, type Room, getStateCallbacks } from 'colyseus.js';
 import { JUMP_DURATION_MS, ROOM_NAME, type Lang } from '../../../../shared/nightfall2/constants';
-import type { ChatEvent, EmoteEvent, InputMsg, JoinOptions, JumpEvent, LobbyLookup, NewsEvent, SystemEvent } from '../../../../shared/nightfall2/messages';
+import type { ChatEvent, EmoteEvent, InputMsg, JoinOptions, JumpEvent, LobbyLookup, NewsEvent, RoleEvent, SetupEvent, SystemEvent } from '../../../../shared/nightfall2/messages';
 import { emoteAnim, jumps, nf2, positions, type Roster } from './store';
 import { sfxBell, sfxDawn, sfxEmote, sfxHush, sfxJump } from './sounds';
 import { speakNews, stopSpeech } from './speech';
@@ -99,7 +99,7 @@ function bind(r: Room) {
   const syncRoster = () => {
     const roster: Roster[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    r.state.players.forEach((p: any, id: string) => roster.push({ id, name: p.name, color: p.color, look: p.look, host: p.host, alive: p.alive }));
+    r.state.players.forEach((p: any, id: string) => roster.push({ id, name: p.name, color: p.color, look: p.look, host: p.host, alive: p.alive, ready: p.ready }));
     nf2.set({ roster });
   };
   const syncPhase = () => {
@@ -131,6 +131,7 @@ function bind(r: Room) {
     $(p).listen('alive', syncRoster);
     $(p).listen('name', syncRoster);
     $(p).listen('look', syncRoster);
+    $(p).listen('ready', syncRoster);
   });
   $(r.state).players.onRemove((_p: unknown, id: string) => {
     positions.delete(id);
@@ -143,6 +144,7 @@ function bind(r: Room) {
   $(r.state).listen('day', syncPhase);
   $(r.state).listen('code', syncPhase);
   $(r.state).listen('lang', syncPhase);
+  $(r.state).listen('roundLive', () => nf2.set({ roundLive: r.state.roundLive, ...(r.state.roundLive ? {} : { myRole: null, setup: null }) }));
 
   r.onMessage<ChatEvent>('chat', (ev) => nf2.set({ chat: [...nf2.get().chat.slice(-79), ev] }));
   r.onMessage<EmoteEvent>('emote', (ev) => {
@@ -151,6 +153,8 @@ function bind(r: Room) {
     if (ev.from !== r.sessionId) sfxEmote();
   });
   r.onMessage<JumpEvent>('jump', (ev) => jumps.set(ev.from, performance.now()));
+  r.onMessage<RoleEvent>('role', (ev) => nf2.set({ myRole: ev.role }));
+  r.onMessage<SetupEvent>('setup', (ev) => nf2.set({ setup: ev }));
   r.onMessage<NewsEvent>('news', (ev) => {
     nf2.set({ crier: { day: ev.day, lang: ev.lang, lines: ev.lines, index: -1 } });
     sfxBell();

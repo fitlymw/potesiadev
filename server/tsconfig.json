@@ -10,7 +10,9 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowImportingTsExtensions": true,
+    "baseUrl": "..",
+    "paths": { "@/*": ["src/*"] },
     "verbatimModuleSyntax": true
   },
-  "include": ["src", "../shared"]
+  "include": ["src", "../shared", "../src/lib/party", "../src/data"]
 }
