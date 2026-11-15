@@ -161,25 +161,28 @@ export class ElfTownRoom extends Room<TownState> {
   }
 
   /**
-   * Deal Nightfall Deception's roles and begin day 1. Each player is told their own role in a
-   * private message — a role never enters the shared room state, so it cannot be read off the wire.
+   * Start the day/night cycle. With 5–10 players it is a real round: Nightfall Deception's own
+   * dealer hands out the roles, and each player is told theirs in a private message — a role never
+   * enters the shared room state, so it cannot be read off the wire. With any other number the
+   * town still runs (walking, chat, the Crier), just without roles, and the room is told why.
    */
   private startRound() {
     const ids = Array.from(this.state.players.keys());
-    if (ids.length < NF_MIN_PLAYERS || ids.length > NF_MAX_PLAYERS) {
-      this.broadcast('system', { key: 'needPlayers', day: ids.length } satisfies SystemEvent);
-      return;
-    }
-    const { roles } = dealRoles(ids.length, Math.random, 'standard');
+    const canDeal = ids.length >= NF_MIN_PLAYERS && ids.length <= NF_MAX_PLAYERS;
     this.roles.clear();
-    ids.forEach((id, i) => {
-      const role = roles[i];
-      this.roles.set(id, role);
-      this.clients.find((c) => c.sessionId === id)?.send('role', { role } satisfies RoleEvent);
-    });
-    const [luminaries, cursed, shadows, bosses] = setupFor(ids.length, 'standard');
-    this.broadcast('setup', { players: ids.length, luminaries, cursed, shadows, bosses } satisfies SetupEvent);
-    this.state.roundLive = true;
+    if (canDeal) {
+      const { roles } = dealRoles(ids.length, Math.random, 'standard');
+      ids.forEach((id, i) => {
+        const role = roles[i];
+        this.roles.set(id, role);
+        this.clients.find((c) => c.sessionId === id)?.send('role', { role } satisfies RoleEvent);
+      });
+      const [luminaries, cursed, shadows, bosses] = setupFor(ids.length, 'standard');
+      this.broadcast('setup', { players: ids.length, luminaries, cursed, shadows, bosses } satisfies SetupEvent);
+    } else {
+      this.broadcast('system', { key: 'needPlayers', day: ids.length } satisfies SystemEvent);
+    }
+    this.state.roundLive = canDeal;
     this.beginPhase('day', 1);
   }
 

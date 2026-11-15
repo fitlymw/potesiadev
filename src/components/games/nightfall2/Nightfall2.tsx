@@ -185,6 +185,8 @@ function LobbyBar({ t }: { t: (typeof TEXT)['id'] }) {
   const roster = useNf2((s) => s.roster);
   const me = useNf2((s) => s.me);
   const isHost = roster.find((p) => p.id === me)?.host ?? false;
+  /** Nightfall Deception's table only covers 5–10 seats; outside that the town runs without roles. */
+  const canDeal = roster.length >= 5 && roster.length <= 10;
   const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -213,7 +215,12 @@ function LobbyBar({ t }: { t: (typeof TEXT)['id'] }) {
           </ul>
           <p className="text-[11px] text-white/50">{t.shareHint}</p>
           {isHost ? (
-            <button onClick={() => hostAction('start')} className="w-full border-2 border-emerald-300 bg-emerald-500/25 py-3 text-[11px] text-emerald-100" style={PIXEL}>{t.start}</button>
+            <>
+              <button onClick={() => hostAction('start')} className="w-full border-2 border-emerald-300 bg-emerald-500/25 py-3 text-[11px] text-emerald-100" style={PIXEL}>
+                {canDeal ? t.start : t.startNoRoles}
+              </button>
+              {!canDeal && <p className="text-[11px] text-amber-200/80">{t.rolesNeed}</p>}
+            </>
           ) : (
             <p className="text-center text-xs text-white/60">{t.waitingHost}</p>
           )}
