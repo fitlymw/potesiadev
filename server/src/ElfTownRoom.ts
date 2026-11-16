@@ -22,7 +22,7 @@ import {
 } from '../../shared/nightfall2/constants.ts';
 import { colliders, houseAt, nightSeat, spawnPoint } from '../../shared/nightfall2/town.ts';
 import { distance, step } from '../../shared/nightfall2/physics.ts';
-import { decodeLook, encodeLook } from '../../shared/nightfall2/look.ts';
+import { decodeLook, encodeLook, randomLook } from '../../shared/nightfall2/look.ts';
 import type { ChatEvent, ChatMsg, EmoteEvent, EmoteMsg, InputMsg, JoinOptions, JumpEvent, NewsEvent, NightActionMsg, ReportEvent, RoleEvent, SetupEvent, SystemEvent, TurnEvent } from '../../shared/nightfall2/messages.ts';
 import { composeNews, emptyStats, type DayStats } from './news.ts';
 import { Round } from './round.ts';
@@ -47,8 +47,10 @@ export class Player extends Schema {
   declare ready: boolean;
   /** Sitting in the night circle: the town gathers and nobody wanders off. */
   declare seated: boolean;
+  /** A townsfolk filling an empty seat, so a small group can still play a full round. */
+  declare bot: boolean;
 }
-defineTypes(Player, { sessionId: 'string', name: 'string', color: 'string', look: 'string', x: 'number', y: 'number', z: 'number', rot: 'number', moving: 'boolean', host: 'boolean', alive: 'boolean', ready: 'boolean', seated: 'boolean' });
+defineTypes(Player, { sessionId: 'string', name: 'string', color: 'string', look: 'string', x: 'number', y: 'number', z: 'number', rot: 'number', moving: 'boolean', host: 'boolean', alive: 'boolean', ready: 'boolean', seated: 'boolean', bot: 'boolean' });
 
 export class TownState extends Schema {
   declare code: string;
@@ -65,6 +67,8 @@ export class TownState extends Schema {
 defineTypes(TownState, { code: 'string', lang: 'string', phase: 'string', phaseEndsAt: 'number', day: 'number', roundLive: 'boolean', turnName: 'string', players: { map: Player } });
 
 const BOXES = colliders();
+/** Stand-ins for empty seats, so a round can be played with fewer than five people. */
+const BOT_NAMES = ['Warga Bima', 'Warga Sari', 'Warga Tono', 'Warga Rina', 'Warga Joko', 'Warga Mira', 'Warga Adi', 'Warga Lina', 'Warga Putu'];
 
 async function uniqueCode(): Promise<string> {
   const rooms = await matchMaker.query({ name: ROOM_NAME });
@@ -92,6 +96,8 @@ export class ElfTownRoom extends Room<TownState> {
   private stats: DayStats = emptyStats();
   /** sessionId → dealt role. Server-side only; never part of the synchronised state. */
   private roles = new Map<string, RoleId>();
+  /** Timers for the bots' answers, so they can be cancelled if the room moves on. */
+  private botTimers = new Set<ReturnType<typeof setTimeout>>();
   /** The running round of Nightfall Deception, and which seat each player holds in it. */
   private round: Round | null = null;
   private seatOfId = new Map<string, number>();
@@ -121,7 +127,7 @@ export class ElfTownRoom extends Room<TownState> {
     this.onMessage<ChatMsg>('chat', (client, msg) => this.chat(client, msg));
     this.onMessage<EmoteMsg>('emote', (client, msg) => this.emote(client, msg));
     this.onMessage('jump', (client) => this.jump(client));
-    this.onMessage('start', (client) => this.hostOnly(client, () => this.startRound()));
+    this.onMessage<{ sandbox?: boolean } | undefined>('start', (client, msg) => this.hostOnly(client, () => this.startRound(msg?.sandbox === true)));
     this.onMessage<NightActionMsg>('nightAction', (client, msg) => this.nightAction(client, msg));
     this.onMessage('skip', (client) => this.voteSkip(client));
     this.onMessage('lobby', (client) => this.hostOnly(client, () => this.toLobby()));
@@ -146,6 +152,7 @@ export class ElfTownRoom extends Room<TownState> {
     p.alive = true;
     p.ready = false;
     p.seated = false;
+    p.bot = false;
     p.host = this.state.players.size === 0;
     this.state.players.set(client.sessionId, p);
     this.broadcast('system', { key: 'joined', name: p.name } satisfies SystemEvent, { except: client });
@@ -178,9 +185,10 @@ export class ElfTownRoom extends Room<TownState> {
    * enters the shared room state, so it cannot be read off the wire. With any other number the
    * town still runs (walking, chat, the Crier), just without roles, and the room is told why.
    */
-  private startRound() {
+  private startRound(sandbox = false) {
+    if (!sandbox) this.addBots();
     const ids = Array.from(this.state.players.keys());
-    const canDeal = ids.length >= NF_MIN_PLAYERS && ids.length <= NF_MAX_PLAYERS;
+    const canDeal = !sandbox && ids.length >= NF_MIN_PLAYERS && ids.length <= NF_MAX_PLAYERS;
     this.roles.clear();
     if (canDeal) {
       this.seatOfId = new Map(ids.map((id, i) => [id, i]));
@@ -205,6 +213,44 @@ export class ElfTownRoom extends Room<TownState> {
   }
 
   /**
+   * Too few people for a round? Townsfolk take the empty seats, so one person alone can still
+   * start and play a whole night. They sit in the circle and answer the Crier like anyone else.
+   */
+  private addBots() {
+    const real = this.state.players.size;
+    if (real === 0 || real >= NF_MIN_PLAYERS) return;
+    for (let i = real; i < NF_MIN_PLAYERS; i++) {
+      const p = new Player();
+      const id = `bot-${i}-${Math.random().toString(36).slice(2, 7)}`;
+      const used = new Set(Array.from(this.state.players.values()).map((q) => q.color));
+      p.sessionId = id;
+      p.name = `${BOT_NAMES[i % BOT_NAMES.length]}`;
+      p.color = PLAYER_COLORS.find((c) => !used.has(c)) ?? PLAYER_COLORS[0];
+      p.look = encodeLook(randomLook());
+      const sp = spawnPoint(this.joinCount++);
+      p.x = sp.x;
+      p.y = 0;
+      p.z = sp.z;
+      p.rot = sp.rot;
+      p.moving = false;
+      p.alive = true;
+      p.ready = true; // they never hold up a vote
+      p.seated = false;
+      p.bot = true;
+      p.host = false;
+      this.state.players.set(id, p);
+    }
+  }
+
+  private clearBots() {
+    this.botTimers.forEach((t) => clearTimeout(t));
+    this.botTimers.clear();
+    Array.from(this.state.players.entries()).forEach(([id, p]) => {
+      if (p.bot) this.state.players.delete(id);
+    });
+  }
+
+  /**
    * Hand the turn to whoever the engine is asking, privately. Everyone else only sees the name,
    * exactly as everyone can see who is holding the phone in the first game.
    */
@@ -218,6 +264,17 @@ export class ElfTownRoom extends Room<TownState> {
     }
     const id = this.idOfSeat[turn.seat];
     this.state.turnName = round.names[turn.seat];
+    if (this.state.players.get(id)?.bot) {
+      const timer = setTimeout(() => {
+        this.botTimers.delete(timer);
+        if (!this.round || this.round !== round) return;
+        const pick = turn.candidates.slice(0, Math.max(...turn.accept));
+        round.submit(turn.seat, pick, turn.suspect ? turn.candidates[0] : undefined);
+        this.askNext();
+      }, 900);
+      this.botTimers.add(timer);
+      return;
+    }
     this.clients.find((c) => c.sessionId === id)?.send('turn', {
       seat: turn.seat,
       kind: turn.kind,
@@ -268,7 +325,7 @@ export class ElfTownRoom extends Room<TownState> {
   }
 
   private clearReady() {
-    this.state.players.forEach((p) => { p.ready = false; });
+    this.state.players.forEach((p) => { p.ready = p.bot; });
   }
 
   /**
@@ -345,6 +402,7 @@ export class ElfTownRoom extends Room<TownState> {
   }
 
   private toLobby() {
+    this.clearBots();
     this.clearReady();
     this.roles.clear();
     this.round = null;
@@ -415,6 +473,7 @@ export class ElfTownRoom extends Room<TownState> {
 
   /** Jumps are cosmetic; everyone sees them (they are visible from afar anyway). */
   private jump(client: Client) {
+    if (this.state.players.get(client.sessionId)?.seated) return; // sitting in the night circle
     const now = Date.now();
     if (now - (this.lastJumpAt.get(client.sessionId) ?? 0) < JUMP_MIN_INTERVAL_MS) return;
     this.lastJumpAt.set(client.sessionId, now);

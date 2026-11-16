@@ -21,7 +21,7 @@ import { Chat } from './ui/Chat';
 import { Joystick } from './ui/Joystick';
 import { EmoteWheel } from './ui/EmoteWheel';
 import { CharacterEditor } from './ui/CharacterEditor';
-import { RoleCard } from './ui/RolePanel';
+import { RoleCard, RoleReveal } from './ui/RolePanel';
 import { NightReport, NightTurn, TurnWatcher } from './ui/NightTurn';
 
 const PIXEL = { fontFamily: '"Press Start 2P", cursive' };
@@ -162,6 +162,7 @@ function GameView({ t, lang, touch }: { t: (typeof TEXT)['id']; lang: Lang; touc
       <Hud t={t} lang={lang} touch={touch} />
       {phase === 'lobby' && <LobbyBar t={t} />}
       <RoleCard t={t} lang={lang} />
+      <RoleReveal t={t} lang={lang} />
       <NightTurn t={t} />
       <TurnWatcher t={t} />
       <NightReport t={t} />
@@ -189,10 +190,12 @@ function LobbyBar({ t }: { t: (typeof TEXT)['id'] }) {
   const roster = useNf2((s) => s.roster);
   const me = useNf2((s) => s.me);
   const isHost = roster.find((p) => p.id === me)?.host ?? false;
-  /** Nightfall Deception's table only covers 5–10 seats; outside that the town runs without roles. */
-  const canDeal = roster.length >= 5 && roster.length <= 10;
+  /** Up to ten seats are dealt; below five the server fills the rest with townsfolk bots. */
+  const canDeal = roster.length >= 1 && roster.length <= 10;
+  const needsBots = canDeal && roster.length < 5;
   const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [sandbox, setSandbox] = useState(false);
   const copy = async () => {
     try { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ }
   };
@@ -220,9 +223,14 @@ function LobbyBar({ t }: { t: (typeof TEXT)['id'] }) {
           <p className="text-[11px] text-white/50">{t.shareHint}</p>
           {isHost ? (
             <>
-              <button onClick={() => hostAction('start')} className="w-full border-2 border-emerald-300 bg-emerald-500/25 py-3 text-[11px] text-emerald-100" style={PIXEL}>
-                {canDeal ? t.start : t.startNoRoles}
+              <button onClick={() => hostAction('start', { sandbox })} className="w-full border-2 border-emerald-300 bg-emerald-500/25 py-3 text-[11px] text-emerald-100" style={PIXEL}>
+                {canDeal && !sandbox ? t.start : t.startNoRoles}
               </button>
+              <label className="flex items-center justify-center gap-2 text-[11px] text-white/70">
+                <input type="checkbox" checked={sandbox} onChange={(e) => setSandbox(e.target.checked)} aria-label={t.sandboxLabel} className="h-4 w-4 accent-emerald-400" />
+                {t.sandboxLabel}
+              </label>
+              {needsBots && !sandbox && <p className="text-[11px] text-amber-200/80">{t.botsNote}</p>}
               {!canDeal && <p className="text-[11px] text-amber-200/80">{t.rolesNeed}</p>}
             </>
           ) : (

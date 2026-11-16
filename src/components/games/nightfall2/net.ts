@@ -100,7 +100,7 @@ function bind(r: Room) {
   const syncRoster = () => {
     const roster: Roster[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    r.state.players.forEach((p: any, id: string) => roster.push({ id, name: p.name, color: p.color, look: p.look, host: p.host, alive: p.alive, ready: p.ready, seated: p.seated }));
+    r.state.players.forEach((p: any, id: string) => roster.push({ id, name: p.name, color: p.color, look: p.look, host: p.host, alive: p.alive, ready: p.ready, seated: p.seated, bot: p.bot }));
     nf2.set({ roster });
   };
   const syncPhase = () => {
@@ -167,7 +167,7 @@ function bind(r: Room) {
     if (ev.from !== r.sessionId) sfxEmote();
   });
   r.onMessage<JumpEvent>('jump', (ev) => jumps.set(ev.from, performance.now()));
-  r.onMessage<RoleEvent>('role', (ev) => nf2.set({ myRole: ev.role }));
+  r.onMessage<RoleEvent>('role', (ev) => nf2.set({ myRole: ev.role, roleRevealed: true }));
   r.onMessage<TurnEvent>('turn', (ev) => nf2.set({ turn: ev }));
   r.onMessage<ReportEvent>('report', (ev) => nf2.set({ report: ev.lines }));
   r.onMessage<SetupEvent>('setup', (ev) => nf2.set({ setup: ev }));
@@ -208,14 +208,15 @@ export function sendEmote(id: number) {
 export function jump() {
   const me = nf2.get().me;
   if (!room || !me) return;
+  if (nf2.get().roster.find((p) => p.id === me)?.seated) return; // nobody hops about in the night circle
   const now = performance.now();
   if (now - (jumps.get(me) ?? -1e9) < JUMP_DURATION_MS) return;
   jumps.set(me, now);
   sfxJump();
   room.send('jump');
 }
-export function hostAction(kind: 'start' | 'skip' | 'lobby') {
-  room?.send(kind);
+export function hostAction(kind: 'start' | 'skip' | 'lobby', options?: { sandbox?: boolean }) {
+  room?.send(kind, options);
 }
 export function leaveLobby() {
   const r = room;

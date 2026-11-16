@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BookOpen, ChevronDown, X } from 'lucide-react';
 import { ROLES, TEAM_GOAL, TEAM_LABEL, type RoleId, type Team } from '@/data/nightfallRoles';
 import { RoleIcon } from '@/components/games/nightfall/RoleIcon';
-import { useNf2 } from '../store';
+import { nf2, useNf2 } from '../store';
 import type { Lang, TEXT } from '../texts';
 
 const PIXEL = { fontFamily: '"Press Start 2P", cursive' };
@@ -52,6 +52,45 @@ export function RoleCard({ t, lang }: { t: (typeof TEXT)['id']; lang: Lang }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The one-off reveal when the round is dealt: your role fills the middle of your own screen,
+ * big enough to read at a glance and gone as soon as you tap it.
+ */
+export function RoleReveal({ t, lang }: { t: (typeof TEXT)['id']; lang: Lang }) {
+  const role = useNf2((s) => s.myRole) as RoleId | null;
+  const shown = useNf2((s) => s.roleRevealed);
+  if (!role || !shown) return null;
+  const info = ROLES[role];
+  const style = TEAM_STYLE[info.team];
+  const evil = info.team === 'shadow' || info.team === 'nightbringer';
+  return createPortal(
+    <motion.button
+      data-ui
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={() => nf2.set({ roleRevealed: false })}
+      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/85 p-5 backdrop-blur-md"
+    >
+      <motion.div
+        initial={{ scale: 0.8, rotateY: -25 }}
+        animate={{ scale: 1, rotateY: 0 }}
+        transition={{ type: 'spring', stiffness: 160, damping: 18 }}
+        className={`w-[min(94vw,420px)] rounded-3xl border-2 ${style.ring} ${style.bg} p-6 text-center`}
+      >
+        <p className="text-[10px] uppercase tracking-widest text-white/60" style={PIXEL}>{t.roleRevealTitle}</p>
+        <div className="mt-5 flex justify-center"><RoleIcon role={role} size={96} /></div>
+        <p className={`mt-4 text-3xl font-bold ${style.text}`}>{info.name}</p>
+        <p className={`mt-1 text-sm ${style.text}`}>{TEAM_LABEL[info.team][lang]}</p>
+        <p className="mt-4 text-sm leading-snug text-white/90">{info.ability[lang]}</p>
+        <p className="mt-4 text-xs text-white/60">{TEAM_GOAL[evil ? 'evil' : 'good'][lang]}</p>
+        <p className="mt-5 text-[11px] text-white/45">{t.roleRevealHint}</p>
+      </motion.div>
+    </motion.button>,
+    document.body,
   );
 }
 

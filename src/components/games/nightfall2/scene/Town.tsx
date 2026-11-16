@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -237,7 +237,6 @@ export function Town() {
       <Pieces url={nature('plant_bush')} items={bushes} />
       <Pieces url={town('stall')} items={stalls} />
       <Pieces url={town('lantern')} items={lanterns} />
-      <WindowGlow />
       {LANTERNS.map((l, i) => (
         <group key={i} position={[l.x, 0, l.z]}>
           <mesh position={[0, 2.55, 0]}>
@@ -251,31 +250,3 @@ export function Town() {
   );
 }
 
-/** Warm glow behind every ground-floor window at night: a small emissive quad per house. */
-function WindowGlow() {
-  const material = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3a2a10', emissive: '#ffcf7a', emissiveIntensity: 0, side: THREE.DoubleSide }), []);
-  const live = useRef<THREE.MeshStandardMaterial | null>(null);
-  useEffect(() => { live.current = material; }, [material]);
-  useFrame(() => {
-    const m = live.current;
-    if (m) m.emissiveIntensity = env.night * 1.4;
-  });
-  const quads = useMemo(() => HOUSES.flatMap((hs) => {
-    const b = houseBounds(hs);
-    const out: [number, number, number, number][] = [];
-    for (let i = 0; i < hs.w; i += 2) {
-      out.push([b.minX + (i + 0.5) * TILE, 1.4, b.minZ + 0.28, 0]);
-      out.push([b.minX + (i + 0.5) * TILE, 1.4, b.maxZ - 0.28, 0]);
-    }
-    return out;
-  }), []);
-  return (
-    <>
-      {quads.map(([x, y, z, rot], i) => (
-        <mesh key={i} position={[x, y, z]} rotation={[0, rot, 0]} material={material}>
-          <planeGeometry args={[0.9, 0.9]} />
-        </mesh>
-      ))}
-    </>
-  );
-}

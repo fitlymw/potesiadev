@@ -55,7 +55,15 @@ function RemotePlayer({ p, meRef, t }: { p: Roster; meRef: React.RefObject<THREE
       <KayCharacter look={look} animRef={anim} alive={p.alive} />
       <group ref={tag} position={[0, 2.25, 0]}>
         <Billboard>
-          <Text fontSize={0.26} color="#fff" outlineWidth={0.02} outlineColor="#000" anchorY="bottom">
+          <Text
+            fontSize={0.26}
+            color="#fff"
+            outlineWidth={0.02}
+            outlineColor="#000"
+            anchorY="bottom"
+            renderOrder={10}
+            material-depthTest={false}
+          >
             {p.name}
           </Text>
         </Billboard>
