@@ -67,7 +67,10 @@ export async function joinLobby(code: string, opts: JoinOptions): Promise<void> 
     if (!urls) throw new LobbyError('offline');
     let res: Response;
     try {
-      res = await fetch(`${urls.http}/lobby/${encodeURIComponent(code.trim().toUpperCase())}`);
+      // the header asks ngrok not to serve its browser warning page instead of our JSON
+      res = await fetch(`${urls.http}/lobby/${encodeURIComponent(code.trim().toUpperCase())}`, {
+        headers: { Accept: 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      });
     } catch {
       throw new LobbyError('offline');
     }
