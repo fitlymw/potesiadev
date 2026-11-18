@@ -1,0 +1,6 @@
+{
+  "$comment": "Read by the Vercel project that serves this built output at potesia.com/games. Without it a deep link like /games/learning-lab has no matching file and 404s, because this is a single-page app. Static files are matched before rewrites, so assets are unaffected. Harmless on GitHub Pages, which ignores it.",
+  "rewrites": [
+    { "source": "/games/(.*)", "destination": "/games/index.html" }
+  ]
+}
