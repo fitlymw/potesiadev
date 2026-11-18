@@ -1,1 +1,0 @@
-import{f as c}from"./index-Nk2JFCoX.js";const e=[["path",{d:"M20 6 9 17l-5-5",key:"1gmf2c"}]],a=c("check",e);const s=[["path",{d:"M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719",key:"1sd12s"}]],t=c("message-circle",s);export{a as C,t as M};
